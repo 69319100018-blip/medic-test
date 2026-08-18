@@ -11,7 +11,11 @@ const userProfiles = {
 const manualUrl = "https://docs.google.com/spreadsheets/d/1vGjzD5YZiiBs65yBodjtxsoUPQVr_EMMnfqRXWbOZrI/edit?gid=749978115#gid=749978115";
 const rulesUrl = "https://sites.google.com/bic.ac.th/mediclightcity/%E0%B8%84%E0%B8%93%E0%B8%AA%E0%B8%A1%E0%B8%9A%E0%B8%95%E0%B8%82%E0%B8%AD%E0%B8%87%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B9%80%E0%B8%9B%E0%B8%99%E0%B9%81%E0%B8%9E%E0%B8%97%E0%B8%A2";
 
-let shiftLog = JSON.parse(localStorage.getItem('shiftLog')) || {};
+// ============================================================
+// DATA LAYER — ข้อมูลทั้งหมดอยู่บนฐานข้อมูล Neon (ใช้ร่วมกันทุกคน)
+// หน้าเว็บดึงข้อมูลผ่าน /api/shift และ /api/fund (Vercel Functions)
+// ============================================================
+let shiftLog = {};
 let currentUser = null;
 let historyViewUser = null;
 let realtimeInterval = null;
@@ -32,21 +36,39 @@ function getDefaultFundState() {
     };
 }
 
-function loadCentralFund() {
-    const stored = JSON.parse(localStorage.getItem('centralFund') || 'null');
-    if (!stored) return getDefaultFundState();
-    return {
-        balance: Number(stored.balance) || 0,
-        allocations: {
-            cash: Number(stored.allocations?.cash) || 0,
-            deposit: Number(stored.allocations?.deposit) || 0,
-            reserve: Number(stored.allocations?.reserve) || 0
-        },
-        history: Array.isArray(stored.history) ? stored.history : []
-    };
+centralFund = getDefaultFundState();
+
+async function apiGet(path) {
+    const res = await fetch(path);
+    if (!res.ok) throw new Error(`โหลดข้อมูลไม่สำเร็จ (${res.status})`);
+    return res.json();
 }
 
-centralFund = loadCentralFund();
+async function apiPost(path, body) {
+    const res = await fetch(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `บันทึกไม่สำเร็จ (${res.status})`);
+    return data;
+}
+
+// ดึงข้อมูลเวร + เงินกองกลางล่าสุดจากฐานข้อมูล
+async function loadAllData() {
+    const [log, fund] = await Promise.all([apiGet('/api/shift'), apiGet('/api/fund')]);
+    shiftLog = log || {};
+    centralFund = fund || getDefaultFundState();
+}
+
+function refreshShiftViews() {
+    renderProfile();
+    renderLog();
+    renderTeamStatus();
+    renderForceOut();
+    updateActionButtons();
+}
 
 const loginBackgroundImages = [
     'IMG_4433.jpg',
@@ -174,10 +196,6 @@ function startClock() {
     elapsedInterval = setInterval(updateCurrentTime, 1000);
 }
 
-function saveShiftLog() {
-    localStorage.setItem('shiftLog', JSON.stringify(shiftLog));
-}
-
 function canViewMonitoring(username) {
     return userProfiles[username]?.canViewMonitoring === true;
 }
@@ -225,10 +243,6 @@ function updateActionButtons() {
     btnOut.disabled = !Boolean(status);
     btnIn.classList.toggle('cta-glow', !btnIn.disabled);
     btnOut.classList.toggle('cta-glow', !btnOut.disabled);
-}
-
-function saveCentralFund() {
-    localStorage.setItem('centralFund', JSON.stringify(centralFund));
 }
 
 function renderCentralFund() {
@@ -294,17 +308,18 @@ function renderCentralFund() {
         <div class="fund-history-item">
             <div>
                 <strong>${entry.type}</strong>
-                <span>${entry.note || 'ไม่มีหมายเหตุ'}</span>
+                <span>${entry.username ? `${userProfiles[entry.username]?.name || entry.username} • ` : ''}${entry.note || 'ไม่มีหมายเหตุ'}</span>
             </div>
             <div class="fund-history-meta">
-                <strong>${entry.amount.toLocaleString('th-TH')} บาท</strong>
+                <strong>${Number(entry.amount).toLocaleString('th-TH')} บาท</strong>
                 <span>${entry.date} ${entry.time}</span>
             </div>
         </div>
     `).join('');
 }
 
-function handleFundTransaction(type) {
+// ฝาก/ถอนเงินกองกลาง — บันทึกลงฐานข้อมูลกลาง ทุกคนเห็นอัพเดท
+async function handleFundTransaction(type) {
     const amountInput = document.getElementById('fundAmountInput');
     const noteInput = document.getElementById('fundNoteInput');
     const amount = Number(amountInput?.value);
@@ -317,30 +332,26 @@ function handleFundTransaction(type) {
         return;
     }
 
-    const now = new Date();
-    const entry = {
-        type: type === 'deposit' ? 'ฝากเงิน' : 'ถอนเงิน',
-        amount,
-        note: noteInput?.value.trim() || 'ไม่มีหมายเหตุ',
-        date: now.toLocaleDateString('th-TH'),
-        time: now.toLocaleTimeString('th-TH', { hour12: false })
-    };
-
-    if (type === 'deposit') {
-        centralFund.balance += amount;
-        centralFund.allocations.cash += amount;
-    } else {
-        centralFund.balance -= amount;
-        centralFund.allocations.cash -= amount;
+    const btn = document.getElementById(type === 'deposit' ? 'btnFundDeposit' : 'btnFundWithdraw');
+    if (btn) btn.disabled = true;
+    try {
+        await apiPost('/api/fund', {
+            action: type,
+            amount,
+            note: noteInput?.value.trim() || '',
+            username: currentUser
+        });
+        await loadAllData();
+        renderCentralFund();
+        amountInput.value = '';
+        noteInput.value = '';
+        celebrate({ particleCount: 70, spread: 65, origin: { y: 0.6 }, colors: ['#fbbf24', '#f59e0b', '#22c55e'] });
+        showAlert(`${type === 'deposit' ? 'ฝากเงิน' : 'ถอนเงิน'}สำเร็จ`, `จำนวน ${amount.toLocaleString('th-TH')} บาท เรียบร้อย`, 'success');
+    } catch (err) {
+        showAlert('ทำรายการไม่สำเร็จ', err.message || 'ลองใหม่อีกครั้ง', 'error');
+    } finally {
+        if (btn) btn.disabled = false;
     }
-
-    centralFund.history.unshift(entry);
-    saveCentralFund();
-    renderCentralFund();
-    amountInput.value = '';
-    noteInput.value = '';
-    celebrate({ particleCount: 70, spread: 65, origin: { y: 0.6 }, colors: ['#fbbf24', '#f59e0b', '#22c55e'] });
-    showAlert(`${entry.type}สำเร็จ`, `${entry.type}จำนวน ${amount.toLocaleString('th-TH')} บาท เรียบร้อย`, 'success');
 }
 
 function renderProfile() {
@@ -426,8 +437,7 @@ function renderTeamStatus() {
     panel.querySelectorAll('.force-logout').forEach((button) => {
         button.addEventListener('click', (event) => {
             const username = event.currentTarget.dataset.user;
-            const checkIn = getOpenCheckIn(username);
-            if (checkIn) confirmForceOut(username, checkIn);
+            confirmForceOut(username);
         });
     });
     staggerChildren(panel);
@@ -454,7 +464,7 @@ function renderForceOut() {
                 <button class="btn btn-danger force-logout" data-user="${username}">ออกเวร</button>
             </div>
         `;
-        card.querySelector('.force-logout').addEventListener('click', () => confirmForceOut(username, checkIn));
+        card.querySelector('.force-logout').addEventListener('click', () => confirmForceOut(username));
         panel.appendChild(card);
     });
     if (!hasActive) {
@@ -463,69 +473,51 @@ function renderForceOut() {
     staggerChildren(panel);
 }
 
-function confirmForceOut(username, checkInLog) {
-    if (!window.Swal) {
-        if (!confirm(`ยืนยันการออกเวรบังคับให้ ${userProfiles[username].name}?`)) return;
+// บังคับออกเวร — บันทึกลงฐานข้อมูลกลาง
+async function confirmForceOut(username) {
+    try {
+        await apiPost('/api/shift', { action: 'forceout', username });
+        await loadAllData();
+        refreshShiftViews();
+        renderCentralFund();
+        showAlert('ออกเวรสำเร็จ', `${userProfiles[username].name} ถูกออกเวรเรียบร้อยแล้ว`, 'success');
+    } catch (err) {
+        showAlert('ทำรายการไม่สำเร็จ', err.message || 'ลองใหม่อีกครั้ง', 'error');
     }
-    const finish = new Date();
-    const diff = Math.floor((finish - new Date(checkInLog.datetime)) / 60000);
-    const hours = Math.floor(diff / 60);
-    const minutes = diff % 60;
-    const durationText = hours > 0 ? `${hours} ชม. ${minutes} นาที` : `${minutes} นาที`;
-    checkInLog.duration = durationText;
-    checkInLog.outTime = finish.toLocaleTimeString('th-TH', { hour12: false });
-    const exitLog = { type: 'ออกเวร', time: finish.toLocaleTimeString('th-TH', { hour12: false }), date: finish.toLocaleDateString('th-TH'), duration: durationText, isForced: true };
-    shiftLog[username] = shiftLog[username] || [];
-    shiftLog[username].push(exitLog);
-    saveShiftLog();
-    renderTeamStatus();
-    renderForceOut();
-    if (currentUser === username) {
-        renderProfile();
-        renderLog();
+}
+
+// เข้าเวร — บันทึกลงฐานข้อมูลกลาง
+async function handleCheckIn() {
+    const btn = document.getElementById('btnCheckIn');
+    if (btn) btn.disabled = true;
+    try {
+        await apiPost('/api/shift', { action: 'checkin', username: currentUser });
+        await loadAllData();
+        refreshShiftViews();
+        celebrate({ particleCount: 110, spread: 80, origin: { y: 0.65 }, colors: ['#22c55e', '#2563eb', '#a78bfa', '#fbbf24'] });
+        showAlert('เข้าเวรสำเร็จ', `${userProfiles[currentUser].name} เข้าเวรเรียบร้อย`, 'success');
+    } catch (err) {
+        showAlert('เข้าเวรไม่สำเร็จ', err.message || 'ลองใหม่อีกครั้ง', 'error');
+    } finally {
         updateActionButtons();
     }
-    showAlert('ออกเวรสำเร็จ', `${userProfiles[username].name} ถูกออกเวรเรียบร้อยแล้ว`, 'success');
 }
 
-function handleCheckIn() {
-    const now = new Date();
-    const entry = { type: 'เข้าเวร', time: now.toLocaleTimeString('th-TH', { hour12: false }), datetime: now.toISOString(), date: now.toLocaleDateString('th-TH') };
-    shiftLog[currentUser] = shiftLog[currentUser] || [];
-    shiftLog[currentUser].push(entry);
-    saveShiftLog();
-    updateActionButtons();
-    renderProfile();
-    renderLog();
-    renderTeamStatus();
-    renderForceOut();
-    celebrate({ particleCount: 110, spread: 80, origin: { y: 0.65 }, colors: ['#22c55e', '#2563eb', '#a78bfa', '#fbbf24'] });
-    showAlert('เข้าเวรสำเร็จ', `${userProfiles[currentUser].name} เข้าเวรเรียบร้อย`, 'success');
-}
-
-function handleCheckOut() {
-    const logs = shiftLog[currentUser] || [];
-    const active = logs.slice().reverse().find((log) => log.type === 'เข้าเวร' && !log.duration);
-    const now = new Date();
-    let durationText = 'ไม่พบเวลาเข้าเวร';
-    if (active) {
-        const diff = Math.floor((now - new Date(active.datetime)) / 60000);
-        const hours = Math.floor(diff / 60);
-        const minutes = diff % 60;
-        durationText = hours > 0 ? `${hours} ชม. ${minutes} นาที` : `${minutes} นาที`;
-        active.duration = durationText;
-        active.outTime = now.toLocaleTimeString('th-TH', { hour12: false });
+// ออกเวร — บันทึกลงฐานข้อมูลกลาง
+async function handleCheckOut() {
+    const btn = document.getElementById('btnCheckOut');
+    if (btn) btn.disabled = true;
+    try {
+        const result = await apiPost('/api/shift', { action: 'checkout', username: currentUser });
+        await loadAllData();
+        refreshShiftViews();
+        celebrate({ particleCount: 60, spread: 60, origin: { y: 0.65 }, colors: ['#f87171', '#fb923c', '#fbbf24'] });
+        showAlert('ออกเวรสำเร็จ', `${userProfiles[currentUser].name} ออกเวรเรียบร้อย (${result.duration || ''})`, 'success');
+    } catch (err) {
+        showAlert('ออกเวรไม่สำเร็จ', err.message || 'ลองใหม่อีกครั้ง', 'error');
+    } finally {
+        updateActionButtons();
     }
-    const exitLog = { type: 'ออกเวร', time: now.toLocaleTimeString('th-TH', { hour12: false }), date: now.toLocaleDateString('th-TH'), duration: durationText };
-    shiftLog[currentUser].push(exitLog);
-    saveShiftLog();
-    updateActionButtons();
-    renderProfile();
-    renderLog();
-    renderTeamStatus();
-    renderForceOut();
-    celebrate({ particleCount: 60, spread: 60, origin: { y: 0.65 }, colors: ['#f87171', '#fb923c', '#fbbf24'] });
-    showAlert('ออกเวรสำเร็จ', `${userProfiles[currentUser].name} ออกเวรเรียบร้อย (${durationText})`, 'success');
 }
 
 function openUserHistory(username) {
@@ -586,7 +578,7 @@ function bindDashboardEvents() {
     document.querySelectorAll('.tab-btn').forEach((tab) => tab.addEventListener('click', handleTabSwitch));
 }
 
-function initDashboard() {
+async function initDashboard() {
     currentUser = sessionStorage.getItem('loggedInUser');
     if (!currentUser) {
         window.location.href = 'index.html';
@@ -594,6 +586,14 @@ function initDashboard() {
     }
     startClock();
     bindDashboardEvents();
+
+    // โหลดข้อมูลล่าสุดจากฐานข้อมูลกลางก่อนแสดงผล
+    try {
+        await loadAllData();
+    } catch (err) {
+        showAlert('เชื่อมต่อฐานข้อมูลไม่สำเร็จ', 'กรุณารีเฟรชหน้าเว็บอีกครั้ง', 'error');
+    }
+
     renderProfile();
     renderHistoryControls();
     renderLog();
@@ -607,17 +607,23 @@ function initDashboard() {
             if (link.dataset.target === 'adminSection') link.classList.add('hidden');
         });
     }
-    realtimeInterval = setInterval(() => {
-        const updated = JSON.parse(localStorage.getItem('shiftLog')) || {};
-        if (JSON.stringify(updated) !== JSON.stringify(shiftLog)) {
-            shiftLog = updated;
-            renderProfile();
-            renderLog();
-            renderTeamStatus();
-            renderForceOut();
-            updateActionButtons();
+
+    // ดึงข้อมูลใหม่ทุก 3 วินาที — คนอื่นเข้าเวร/ฝากเงิน เราจะเห็นอัตโนมัติ
+    realtimeInterval = setInterval(async () => {
+        try {
+            const [updatedLog, updatedFund] = await Promise.all([apiGet('/api/shift'), apiGet('/api/fund')]);
+            if (JSON.stringify(updatedLog) !== JSON.stringify(shiftLog)) {
+                shiftLog = updatedLog;
+                refreshShiftViews();
+            }
+            if (JSON.stringify(updatedFund) !== JSON.stringify(centralFund)) {
+                centralFund = updatedFund;
+                renderCentralFund();
+            }
+        } catch (err) {
+            // เน็ตสะดุดชั่วคราว — ข้ามไปรอรอบถัดไป
         }
-    }, 2000);
+    }, 3000);
 }
 
 function handleLogin(e) {
