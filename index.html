@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medic Shift Log</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700;800&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="loginBackground" class="login-background"></div>
+    <div class="bg-blob blob-1"></div>
+    <div class="bg-blob blob-2"></div>
+    <div class="bg-blob blob-3"></div>
+    <div class="page page-login">
+        <div class="hero-card">
+            <div class="hero-copy reveal">
+                <span class="eyebrow">ระบบบันทึกเวร</span>
+                <h1>Medic Shift Log</h1>
+                <p>ล็อกอินเพื่อเข้าเวร-ออกเวร และตรวจสอบสถานะในทีมอย่างชัดเจน</p>
+            </div>
+            <div class="hero-actions">
+                <form id="loginForm" class="card card-form reveal" style="animation-delay: 0.18s">
+                    <h2>เข้าสู่ระบบ</h2>
+                    <label>
+                        ชื่อผู้ใช้
+                        <input id="usernameInput" class="input-field" type="text" autocomplete="off" placeholder="พิมพ์ชื่อผู้ใช้...">
+                    </label>
+                    <label>
+                        รหัสผ่าน
+                        <input id="passwordInput" class="input-field" type="password" placeholder="พิมพ์รหัสผ่าน...">
+                    </label>
+                    <button id="btnLogin" class="btn btn-primary" type="submit">เข้าสู่ระบบ</button>
+                    <p class="help-text">สำหรับ ผอ. แอดมิน และส่วนกลาง จะสามารถดูหน้าตรวจสอบทีมได้</p>
+                </form>
+            </div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medic Shift Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700;800&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="bg-blob blob-1"></div>
+    <div class="bg-blob blob-2"></div>
+    <div class="bg-blob blob-3"></div>
+    <div class="page page-dashboard">
+        <header class="topbar">
+            <div class="brand">
+                <img class="brand-logo" src="talos.jpg" alt="Talos">
+                <div>
+                    <strong>Medic Shift Log</strong>
+                    <small>ระบบตรวจสอบเข้า-ออกเวร</small>
+                </div>
+            </div>
+            <div class="topbar-actions">
+                <div class="time-label">
+                    <span>เวลา</span>
+                    <strong id="currentTime">00:00:00</strong>
+                </div>
+                <button id="btnLogout" class="btn btn-secondary">ออกจากระบบ</button>
+            </div>
+        </header>
+
+        <nav class="dashboard-nav">
+            <button class="nav-link active" data-target="overviewSection">ภาพรวม</button>
+            <button class="nav-link" data-target="fundsSection">เงินกองกลาง</button>
+            <button class="nav-link" data-target="historySection">ประวัติ</button>
+            <button class="nav-link" data-target="adminSection">ตรวจสอบ</button>
+        </nav>
+
+        <main class="dashboard-grid">
+            <section class="panel panel-profile" id="overviewSection">
+                <div class="profile-header">
+                    <img id="userAvatar" class="avatar" src="" alt="Avatar">
+                    <div>
+                        <p class="label">ผู้ใช้งาน</p>
+                        <h2 id="profileName"></h2>
+                        <p class="subtext" id="profileRole"></p>
+                    </div>
+                </div>
+                <div class="profile-stat">
+                    <span>สถานะปัจจุบัน</span>
+                    <strong id="userStatus">ยังไม่เข้าเวร</strong>
+                </div>
+                <div class="action-grid">
+                    <button id="btnCheckIn" class="btn btn-success">✅ เข้าเวร</button>
+                    <button id="btnCheckOut" class="btn btn-danger" disabled>🚪 ออกเวร</button>
+                </div>
+                <div class="quick-links">
+                    <button id="btnManual" class="btn btn-tertiary">📝 กรอกเวลา</button>
+                    <button id="btnRules" class="btn btn-tertiary">📜 เว็บกฎ</button>
+                </div>
+            </section>
+
+            <section class="panel panel-funds hidden" id="fundsSection">
+                <div class="panel-header">
+                    <div>
+                        <p class="label">เงินกองกลาง</p>
+                        <h2>บริหารเงินกองกลาง</h2>
+                    </div>
+                    <span id="fundBalanceSummary" class="date-pill">ยอดรวม 0 บาท</span>
+                </div>
+                <div class="fund-layout">
+                    <div class="fund-card">
+                        <h3>กราฟวงกลมคำนวณเงิน</h3>
+                        <div class="fund-chart-wrap">
+                            <div id="fundChart" class="fund-chart"></div>
+                            <div id="fundChartLegend" class="fund-legend"></div>
+                        </div>
+                    </div>
+                    <div class="fund-card">
+                        <h3>ฝากเงิน / ถอนเงินกองกลาง</h3>
+                        <label>
+                            จำนวนเงิน
+                            <input id="fundAmountInput" type="number" min="0" step="100" placeholder="กรอกจำนวนเงิน">
+                        </label>
+                        <label>
+                            หมายเหตุ
+                            <input id="fundNoteInput" type="text" placeholder="ระบุหมายเหตุ">
+                        </label>
+                        <div class="fund-actions">
+                            <button id="btnFundDeposit" class="btn btn-success" type="button">ฝากเงิน</button>
+                            <button id="btnFundWithdraw" class="btn btn-danger" type="button">ถอนเงิน</button>
+                        </div>
+                    </div>
+                    <div class="fund-card">
+                        <h3>ยอดรวมเงินทั้งหมด</h3>
+                        <p id="fundTotalValue" class="fund-total">0 บาท</p>
+                        <div id="fundSummaryList" class="fund-summary-list"></div>
+                        <div id="fundHistoryList" class="fund-history-list"></div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel panel-status hidden" id="adminSection">
+                <div class="panel-header">
+                    <div>
+                        <p class="label">ตรวจสอบทีม</p>
+                        <h2>สถานะเข้าเวรรายบุคคล</h2>
+                    </div>
+                    <div class="status-tabs">
+                        <button class="tab-btn active" data-mode="status">สถานะ</button>
+                        <button class="tab-btn" data-mode="forceout">ออกเวรบังคับ</button>
+                    </div>
+                </div>
+                <div id="statusPanel" class="status-panel"></div>
+                <div id="forceOutPanel" class="forceout-panel hidden"></div>
+            </section>
+
+            <section class="panel panel-history hidden" id="historySection">
+                <div class="panel-header">
+                    <div>
+                        <p class="label">บันทึกของคุณ</p>
+                        <h2>ประวัติการเข้า-ออกเวร</h2>
+                    </div>
+                    <span id="currentDate" class="date-pill"></span>
+                </div>
+                <div id="logList" class="log-list"></div>
+            </section>
+        </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
