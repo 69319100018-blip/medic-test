@@ -13,6 +13,7 @@
 <base target="_blank">
  
 
+<base target="_blank">
 </head>
 <body>
     <div class="bg-blob blob-1"></div>
@@ -77,43 +78,45 @@
                     <span id="fundBalanceSummary" class="date-pill">ยอดรวม 0 บาท</span>
                 </div>
                 <div class="fund-layout">
-                    <div class="fund-card">
+                    <div class="fund-card fund-chart-card">
                         <h3>แผนภูมิแท่งสรุปเงินกองกลาง</h3>
                         <div class="fund-chart-wrap">
                             <div id="fundChart" class="fund-chart"></div>
                             <div id="fundChartLegend" class="fund-legend"></div>
                         </div>
                     </div>
-                    <div class="fund-card">
-                        <h3>ฝากเงิน / ถอนเงินกองกลาง</h3>
-                        <label>
-                            จำนวนเงิน
-                            <input id="fundAmountInput" type="number" min="0" step="100" placeholder="กรอกจำนวนเงิน">
-                        </label>
-                        <label>
-                            หมายเหตุ
-                            <input id="fundNoteInput" type="text" placeholder="ระบุหมายเหตุ">
-                        </label>
-                        <div class="fund-actions">
-                            <button id="btnFundDeposit" class="btn btn-success" type="button">ฝากเงิน</button>
-                            <button id="btnFundWithdraw" class="btn btn-danger" type="button">ถอนเงิน</button>
-                        </div>
-                    </div>
-                    <div class="fund-card">
-                        <h3>ยอดรวมเงินทั้งหมด</h3>
-                        <p id="fundTotalValue" class="fund-total">0 บาท</p>
-                        <div class="fund-cumulative">
-                            <div class="fund-cum-item fund-cum-income">
-                                <span>รายรับสะสม</span>
-                                <strong id="fundIncomeTotal">0 บาท</strong>
-                            </div>
-                            <div class="fund-cum-item fund-cum-expense">
-                                <span>รายจ่ายสะสม</span>
-                                <strong id="fundExpenseTotal">0 บาท</strong>
+                    <div class="fund-right-col">
+                        <div class="fund-card">
+                            <h3>ฝากเงิน / ถอนเงินกองกลาง</h3>
+                            <label>
+                                จำนวนเงิน
+                                <input id="fundAmountInput" type="number" min="0" step="100" placeholder="กรอกจำนวนเงิน">
+                            </label>
+                            <label>
+                                หมายเหตุ
+                                <input id="fundNoteInput" type="text" placeholder="ระบุหมายเหตุ">
+                            </label>
+                            <div class="fund-actions">
+                                <button id="btnFundDeposit" class="btn btn-success" type="button">ฝากเงิน</button>
+                                <button id="btnFundWithdraw" class="btn btn-danger" type="button">ถอนเงิน</button>
                             </div>
                         </div>
-                        <div id="fundSummaryList" class="fund-summary-list"></div>
-                        <div id="fundHistoryList" class="fund-history-list"></div>
+                        <div class="fund-card">
+                            <h3>ยอดรวมเงินทั้งหมด</h3>
+                            <p id="fundTotalValue" class="fund-total">0 บาท</p>
+                            <div class="fund-cumulative">
+                                <div class="fund-cum-item fund-cum-income">
+                                    <span>รายรับสะสม</span>
+                                    <strong id="fundIncomeTotal">0 บาท</strong>
+                                </div>
+                                <div class="fund-cum-item fund-cum-expense">
+                                    <span>รายจ่ายสะสม</span>
+                                    <strong id="fundExpenseTotal">0 บาท</strong>
+                                </div>
+                            </div>
+                            <div id="fundSummaryList" class="fund-summary-list"></div>
+                            <div id="fundHistoryList" class="fund-history-list"></div>
+                        </div>
                     </div>
                     <div class="fund-card hidden" id="fundAdminCard">
                         <h3>⚙️ เพิ่มเงินฝาก/เงินสำรอง (สำหรับแอดมิน)</h3>

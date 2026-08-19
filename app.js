@@ -234,6 +234,15 @@ function isAdmin(username) {
     return userProfiles[username]?.isAdmin === true;
 }
 
+function canManageStock(username) {
+    const profile = userProfiles[username];
+    if (!profile) return false;
+    // แอดมิน, ผอ., รองผอ. สามารถจัดการสถานะสต็อกได้
+    if (profile.isAdmin) return true;
+    const role = (profile.role || '').toLowerCase();
+    return role.includes('ผู้อำนวยการ') || role.includes('รอง');
+}
+
 const Toast = window.Swal ? Swal.mixin({
     toast: true,
     position: 'top-end',
@@ -435,6 +444,17 @@ async function handleFundAdminAdd(target) {
 // สถานะคำนวณอัตโนมัติจาก จำนวนคงเหลือ เทียบกับ จำนวนขั้นต่ำ
 // ============================================================
 function getStockStatus(item) {
+    // ถ้ามีการตั้งสถานะด้วยตนเอง (เฉพาะแอดมิน/ผอ./รองผอ.)
+    const manual = item.manualStatus;
+    if (manual && manual !== 'auto') {
+        const map = {
+            'ready':   { key: 'ok',      label: 'พร้อมใช้งาน', missing: 0 },
+            'ordered': { key: 'ordered', label: 'สั่งซื้อแล้ว', missing: 0 },
+            'waiting': { key: 'waiting', label: 'รอรับของ',    missing: 0 },
+            'damaged': { key: 'damaged', label: 'ชำรุด',        missing: 0 }
+        };
+        if (map[manual]) return map[manual];
+    }
     const qty = Number(item.quantity) || 0;
     const min = Number(item.minQuantity) || 0;
     const missing = Math.max(0, min - qty);
@@ -499,6 +519,9 @@ function renderStock() {
     list.querySelectorAll('.stock-remove').forEach((btn) => {
         btn.addEventListener('click', () => confirmRemoveStock(btn.dataset.id));
     });
+    list.querySelectorAll('.stock-status-select').forEach((sel) => {
+        sel.addEventListener('change', (e) => handleStockStatusChange(e.target.dataset.id, e.target.value));
+    });
     staggerChildren(list);
 }
 
@@ -531,12 +554,13 @@ async function handleAddStock() {
                 minQuantity,
                 source: source || 'ไม่ระบุแหล่งที่มา',
                 addedBy: currentUser,
+                manualStatus: 'auto',
                 date: now.toLocaleDateString('th-TH'),
                 time: now.toLocaleTimeString('th-TH', { hour12: false })
             });
             saveStockLocal();
         } else {
-            await apiPost('/api/stock', { action: 'add', name, quantity, minQuantity, source, username: currentUser });
+            await apiPost('/api/stock', { action: 'add', name, quantity, minQuantity, source, username: currentUser, manualStatus: 'auto' });
             await loadStockData();
         }
         renderStock();
@@ -599,6 +623,25 @@ async function promptAdjustStock(id, direction) {
     } catch (err) {
         showAlert('ทำรายการไม่สำเร็จ', err.message || 'ลองใหม่อีกครั้ง', 'error');
     }
+}
+
+async function handleStockStatusChange(id, newStatus) {
+    const item = stockItems.find((s) => String(s.id) === String(id));
+    if (!item) return;
+    item.manualStatus = newStatus;
+    if (stockOffline) {
+        saveStockLocal();
+    } else {
+        try {
+            await apiPost('/api/stock', { action: 'set_status', id: item.id, status: newStatus, username: currentUser });
+        } catch (err) {
+            // ถ้า API ยังไม่รองรับ เก็บ local สำรอง
+            saveStockLocal();
+        }
+    }
+    renderStock();
+    const statusLabel = { auto: 'อัตโนมัติ', ready: 'พร้อมใช้งาน', ordered: 'สั่งซื้อแล้ว', waiting: 'รอรับของ', damaged: 'ชำรุด' };
+    showAlert('อัปเดตสถานะแล้ว', `${escapeHtml(item.name)} → ${statusLabel[newStatus] || newStatus}`, 'success');
 }
 
 async function confirmRemoveStock(id) {

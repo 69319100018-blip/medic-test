@@ -617,8 +617,19 @@ label {
 
 .fund-layout {
     display: grid;
-    grid-template-columns: 1.1fr 0.9fr 0.9fr;
+    grid-template-columns: 1.4fr 420px;
     gap: 18px;
+    align-items: start;
+}
+.fund-right-col {
+    display: grid;
+    gap: 18px;
+    align-content: start;
+}
+.fund-chart-card {
+    min-height: 520px;
+    display: grid;
+    align-content: start;
 }
 
 .fund-card {
@@ -892,6 +903,15 @@ label {
     }
 }
 
+@media (max-width: 1024px) {
+    .fund-layout {
+        grid-template-columns: 1fr;
+    }
+    .fund-chart-card {
+        min-height: auto;
+    }
+}
+
 @media (max-width: 680px) {
     body {
         padding: 16px;
@@ -909,11 +929,54 @@ label {
     .action-grid, .quick-links, .fund-actions {
         grid-template-columns: 1fr;
     }
-
-    .fund-layout {
-        grid-template-columns: 1fr;
-    }
 }
+
+
+/* ---------- Stock Status Selector ---------- */
+.stock-status-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+}
+.stock-status-wrap label {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+.stock-status-select {
+    padding: 8px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: white;
+    color: var(--text);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    min-width: 150px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.stock-status-select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+.badge.stock-ordered {
+    color: #1d4ed8;
+    background: rgba(37, 99, 235, 0.12);
+}
+.badge.stock-waiting {
+    color: #7c3aed;
+    background: rgba(124, 58, 237, 0.12);
+}
+.badge.stock-damaged {
+    color: #991b1b;
+    background: rgba(220, 38, 38, 0.14);
+}
+.stock-status-ordered { color: #1d4ed8; font-weight: 700; }
+.stock-status-waiting { color: #7c3aed; font-weight: 700; }
+.stock-status-damaged { color: #b91c1c; font-weight: 700; }
 
 @media (prefers-color-scheme: dark) {
     :root {
@@ -1372,6 +1435,53 @@ body.has-bg .card-form {
 }
 
 /* ---------- Dark mode สำหรับเอฟเฟกต์ใหม่ ---------- */
+
+/* ---------- Stock Status Selector ---------- */
+.stock-status-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+}
+.stock-status-wrap label {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+.stock-status-select {
+    padding: 8px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: white;
+    color: var(--text);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    min-width: 150px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.stock-status-select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+.badge.stock-ordered {
+    color: #1d4ed8;
+    background: rgba(37, 99, 235, 0.12);
+}
+.badge.stock-waiting {
+    color: #7c3aed;
+    background: rgba(124, 58, 237, 0.12);
+}
+.badge.stock-damaged {
+    color: #991b1b;
+    background: rgba(220, 38, 38, 0.14);
+}
+.stock-status-ordered { color: #1d4ed8; font-weight: 700; }
+.stock-status-waiting { color: #7c3aed; font-weight: 700; }
+.stock-status-damaged { color: #b91c1c; font-weight: 700; }
+
 @media (prefers-color-scheme: dark) {
     .bg-blob {
         opacity: 0.22;
@@ -1563,6 +1673,53 @@ body.has-bg .card-form {
         grid-template-columns: 1fr;
     }
 }
+
+
+/* ---------- Stock Status Selector ---------- */
+.stock-status-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+}
+.stock-status-wrap label {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+.stock-status-select {
+    padding: 8px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: white;
+    color: var(--text);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    min-width: 150px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.stock-status-select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+.badge.stock-ordered {
+    color: #1d4ed8;
+    background: rgba(37, 99, 235, 0.12);
+}
+.badge.stock-waiting {
+    color: #7c3aed;
+    background: rgba(124, 58, 237, 0.12);
+}
+.badge.stock-damaged {
+    color: #991b1b;
+    background: rgba(220, 38, 38, 0.14);
+}
+.stock-status-ordered { color: #1d4ed8; font-weight: 700; }
+.stock-status-waiting { color: #7c3aed; font-weight: 700; }
+.stock-status-damaged { color: #b91c1c; font-weight: 700; }
 
 @media (prefers-color-scheme: dark) {
     .stock-item,
