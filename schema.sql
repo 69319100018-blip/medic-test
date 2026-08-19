@@ -2,6 +2,7 @@
 -- Medic Shift Log — ตารางฐานข้อมูล (รันครั้งเดียวใน Neon SQL Editor)
 -- วิธีใช้: เปิด Neon Dashboard > เลือกโปรเจกต์ > SQL Editor
 --          วางโค้ดทั้งหมดนี้แล้วกด Run
+-- อัปเดตล่าสุด: เพิ่มตาราง stock_items สำหรับเมนูสต็อกอุปกรณ์
 -- ============================================================
 
 -- ตารางบันทึกเข้า-ออกเวร (เก็บทุก event ของทุกคน)
@@ -42,3 +43,24 @@ CREATE TABLE IF NOT EXISTS fund_history (
     time TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- ============================================================
+-- ใหม่: ตารางสต็อกอุปกรณ์ (ใช้กับ /api/stock)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS stock_items (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,                      -- ชื่ออุปกรณ์
+    quantity INTEGER NOT NULL DEFAULT 0,     -- จำนวนคงเหลือ (ชิ้น)
+    min_quantity INTEGER NOT NULL DEFAULT 0, -- จำนวนขั้นต่ำที่ต้องมี (ใช้คำนวณ "ขาด")
+    source TEXT DEFAULT '',                  -- แหล่งที่มา / ผู้จัดหา
+    added_by TEXT DEFAULT '',                -- ชื่อคนเพิ่มรายการ (username ที่ล็อกอิน)
+    date TEXT DEFAULT '',                    -- วันที่เพิ่ม (แบบไทย)
+    time TEXT DEFAULT '',                    -- เวลาที่เพิ่ม (แบบไทย)
+    updated_at TIMESTAMPTZ DEFAULT NOW(),    -- อัปเดตล่าสุด (เติม/เบิกสต็อก)
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- ดัชนีช่วยให้เรียงรายการล่าสุดเร็วขึ้น (ไม่บังคับ แต่แนะนำ)
+CREATE INDEX IF NOT EXISTS idx_stock_items_id_desc ON stock_items (id DESC);
+CREATE INDEX IF NOT EXISTS idx_shift_events_username ON shift_events (username);
+CREATE INDEX IF NOT EXISTS idx_fund_history_id_desc ON fund_history (id DESC);
