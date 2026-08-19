@@ -23,6 +23,9 @@ let elapsedInterval = null;
 let loginBgIndex = 0;
 let loginBgInterval = null;
 let centralFund = null;
+let stockItems = [];
+let stockOffline = false;
+const STOCK_LOCAL_KEY = 'medicStockItems';
 
 function getDefaultFundState() {
     return {
@@ -60,6 +63,32 @@ async function loadAllData() {
     const [log, fund] = await Promise.all([apiGet('/api/shift'), apiGet('/api/fund')]);
     shiftLog = log || {};
     centralFund = fund || getDefaultFundState();
+}
+
+// ดึงข้อมูลสต็อก — ถ้าไม่มี API (เช่นเปิดไฟล์ตรง ๆ) จะใช้ข้อมูลในเครื่องแทน
+async function loadStockData() {
+    try {
+        const data = await apiGet('/api/stock');
+        stockItems = Array.isArray(data) ? data : [];
+        stockOffline = false;
+    } catch (err) {
+        stockOffline = true;
+        try {
+            stockItems = JSON.parse(localStorage.getItem(STOCK_LOCAL_KEY) || '[]');
+        } catch (e) {
+            stockItems = [];
+        }
+    }
+}
+
+function saveStockLocal() {
+    localStorage.setItem(STOCK_LOCAL_KEY, JSON.stringify(stockItems));
+}
+
+function escapeHtml(text) {
+    return String(text ?? '').replace(/[&<>"']/g, (ch) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[ch]));
 }
 
 function refreshShiftViews() {
@@ -260,7 +289,7 @@ function renderCentralFund() {
         { label: 'สำรอง', value: Number(centralFund.allocations?.reserve) || 0, color: '#f59e0b' }
     ];
     const total = items.reduce((sum, item) => sum + item.value, 0);
-    const activeItems = items.filter((item) => item.value > 0);
+    const maxValue = Math.max(...items.map((item) => item.value), 1);
 
     animateMoneyText(balanceSummary, centralFund.balance, (v) => `ยอดรวม ${v.toLocaleString('th-TH')} บาท`);
     animateMoneyText(totalValue, centralFund.balance, (v) => `${v.toLocaleString('th-TH')} บาท`);
@@ -269,18 +298,18 @@ function renderCentralFund() {
     chart.classList.add('bump');
     setTimeout(() => chart.classList.remove('bump'), 600);
 
-    if (!activeItems.length || total <= 0) {
-        chart.style.background = 'conic-gradient(#e2e8f0 0deg 360deg)';
-    } else {
-        let startAngle = 0;
-        const segments = activeItems.map((item) => {
-            const endAngle = startAngle + (item.value / total) * 360;
-            const segment = `${item.color} ${startAngle}deg ${endAngle}deg`;
-            startAngle = endAngle;
-            return segment;
-        });
-        chart.style.background = `conic-gradient(${segments.join(', ')})`;
-    }
+    // แผนภูมิแท่ง — ความสูงเทียบกับยอดสูงสุด เห็นสัดส่วนแต่ละประเภทชัดเจน
+    chart.innerHTML = items.map((item) => {
+        const heightPct = item.value > 0 ? Math.max(4, Math.round((item.value / maxValue) * 100)) : 0;
+        return `
+        <div class="fund-bar-col">
+            <span class="fund-bar-value">${item.value.toLocaleString('th-TH')}</span>
+            <div class="fund-bar-track">
+                <div class="fund-bar-fill" style="height:${heightPct}%; background:linear-gradient(180deg, ${item.color}, ${item.color}99);"></div>
+            </div>
+            <span class="fund-bar-label">${item.label}</span>
+        </div>`;
+    }).join('');
 
     legend.innerHTML = items.map((item) => `
         <div class="fund-legend-item">
@@ -351,6 +380,211 @@ async function handleFundTransaction(type) {
         showAlert('ทำรายการไม่สำเร็จ', err.message || 'ลองใหม่อีกครั้ง', 'error');
     } finally {
         if (btn) btn.disabled = false;
+    }
+}
+
+// ============================================================
+// STOCK — ระบบสต็อกอุปกรณ์
+// สถานะคำนวณอัตโนมัติจาก จำนวนคงเหลือ เทียบกับ จำนวนขั้นต่ำ
+// ============================================================
+function getStockStatus(item) {
+    const qty = Number(item.quantity) || 0;
+    const min = Number(item.minQuantity) || 0;
+    const missing = Math.max(0, min - qty);
+    if (qty <= 0) return { key: 'out', label: 'ขาดสต็อก', missing };
+    if (qty < min) return { key: 'low', label: 'ใกล้หมด', missing };
+    return { key: 'ok', label: 'พร้อมใช้งาน', missing: 0 };
+}
+
+function renderStock() {
+    const list = document.getElementById('stockList');
+    if (!list) return;
+    const addedByLabel = document.getElementById('stockAddedByLabel');
+    if (addedByLabel) addedByLabel.textContent = userProfiles[currentUser]?.name || currentUser || '-';
+
+    const statuses = stockItems.map(getStockStatus);
+    const lowCount = statuses.filter((s) => s.key === 'low').length;
+    const outCount = statuses.filter((s) => s.key === 'out').length;
+    const missingTotal = statuses.reduce((sum, s) => sum + s.missing, 0);
+
+    const setText = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+    setText('stockStatTotal', stockItems.length);
+    setText('stockStatLow', lowCount);
+    setText('stockStatOut', outCount);
+    setText('stockStatMissing', `${missingTotal.toLocaleString('th-TH')} ชิ้น`);
+    setText('stockSummaryPill', `ทั้งหมด ${stockItems.length} รายการ • ขาด ${missingTotal.toLocaleString('th-TH')} ชิ้น`);
+
+    if (!stockItems.length) {
+        list.innerHTML = '<div class="log-item"><strong>ยังไม่มีรายการสต็อก</strong><span>เริ่มเพิ่มอุปกรณ์ชิ้นแรกจากฟอร์มด้านบน</span></div>';
+        return;
+    }
+
+    list.innerHTML = stockItems.map((item, i) => {
+        const s = statuses[i];
+        const addedByName = userProfiles[item.addedBy]?.name || item.addedBy || 'ไม่ระบุ';
+        return `
+        <div class="stock-item">
+            <div class="stock-item-head">
+                <div>
+                    <strong>${escapeHtml(item.name)}</strong>
+                    <span class="stock-meta">👤 เพิ่มโดย ${escapeHtml(addedByName)}${item.date ? ` • ${item.date} ${item.time || ''}` : ''}</span>
+                </div>
+                <span class="badge stock-${s.key}">${s.label}</span>
+            </div>
+            <div class="stock-item-body">
+                <span>คงเหลือ <strong>${Number(item.quantity).toLocaleString('th-TH')}</strong> / ขั้นต่ำ ${Number(item.minQuantity).toLocaleString('th-TH')} ชิ้น</span>
+                <span>แหล่งที่มา: ${escapeHtml(item.source || 'ไม่ระบุ')}</span>
+                ${s.missing > 0
+                    ? `<span class="stock-missing">⚠️ ขาดอีก ${s.missing.toLocaleString('th-TH')} ชิ้น</span>`
+                    : '<span class="stock-ok">✔ สต็อกเพียงพอ</span>'}
+            </div>
+            <div class="stock-item-actions">
+                <button class="btn btn-secondary btn-small stock-adjust" data-id="${item.id}" data-delta="1" type="button">＋ เติมสต็อก</button>
+                <button class="btn btn-secondary btn-small stock-adjust" data-id="${item.id}" data-delta="-1" type="button" ${Number(item.quantity) <= 0 ? 'disabled' : ''}>− ใช้/เบิก</button>
+                <button class="btn btn-danger btn-small stock-remove" data-id="${item.id}" type="button">ลบ</button>
+            </div>
+        </div>`;
+    }).join('');
+
+    list.querySelectorAll('.stock-adjust').forEach((btn) => {
+        btn.addEventListener('click', () => promptAdjustStock(btn.dataset.id, Number(btn.dataset.delta)));
+    });
+    list.querySelectorAll('.stock-remove').forEach((btn) => {
+        btn.addEventListener('click', () => confirmRemoveStock(btn.dataset.id));
+    });
+    staggerChildren(list);
+}
+
+// เพิ่มสต็อก — บันทึกชื่อผู้เพิ่มจากบัญชีที่ล็อกอินอัตโนมัติ
+async function handleAddStock() {
+    const nameInput = document.getElementById('stockNameInput');
+    const qtyInput = document.getElementById('stockQtyInput');
+    const minInput = document.getElementById('stockMinInput');
+    const sourceInput = document.getElementById('stockSourceInput');
+    const name = nameInput?.value.trim();
+    const quantity = Math.max(0, Math.floor(Number(qtyInput?.value) || 0));
+    const minQuantity = Math.max(0, Math.floor(Number(minInput?.value) || 0));
+    const source = sourceInput?.value.trim() || '';
+    if (!name) {
+        showAlert('ข้อมูลไม่ครบ', 'กรุณากรอกชื่ออุปกรณ์', 'warning');
+        nameInput?.classList.add('input-error');
+        setTimeout(() => nameInput?.classList.remove('input-error'), 700);
+        return;
+    }
+
+    const btn = document.getElementById('btnAddStock');
+    if (btn) btn.disabled = true;
+    try {
+        if (stockOffline) {
+            const now = new Date();
+            stockItems.unshift({
+                id: Date.now(),
+                name,
+                quantity,
+                minQuantity,
+                source: source || 'ไม่ระบุแหล่งที่มา',
+                addedBy: currentUser,
+                date: now.toLocaleDateString('th-TH'),
+                time: now.toLocaleTimeString('th-TH', { hour12: false })
+            });
+            saveStockLocal();
+        } else {
+            await apiPost('/api/stock', { action: 'add', name, quantity, minQuantity, source, username: currentUser });
+            await loadStockData();
+        }
+        renderStock();
+        nameInput.value = '';
+        qtyInput.value = '';
+        minInput.value = '';
+        sourceInput.value = '';
+        celebrate({ particleCount: 70, spread: 65, origin: { y: 0.6 }, colors: ['#2563eb', '#22c55e', '#fbbf24'] });
+        showAlert('เพิ่มสต็อกสำเร็จ', `${name} จำนวน ${quantity.toLocaleString('th-TH')} ชิ้น เรียบร้อย`, 'success');
+    } catch (err) {
+        showAlert('เพิ่มสต็อกไม่สำเร็จ', err.message || 'ลองใหม่อีกครั้ง', 'error');
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+// เติม/เบิกสต็อก — ถามจำนวนก่อนปรับ
+async function promptAdjustStock(id, direction) {
+    const item = stockItems.find((s) => String(s.id) === String(id));
+    if (!item) return;
+    const isAdd = direction > 0;
+    let amount = 1;
+    if (window.Swal) {
+        const result = await Swal.fire({
+            title: isAdd ? `เติมสต็อก "${item.name}"` : `ใช้/เบิก "${item.name}"`,
+            input: 'number',
+            inputValue: 1,
+            inputAttributes: { min: 1, step: 1 },
+            showCancelButton: true,
+            confirmButtonText: isAdd ? 'เติมสต็อก' : 'เบิกออก',
+            cancelButtonText: 'ยกเลิก',
+            confirmButtonColor: isAdd ? '#16a34a' : '#dc2626'
+        });
+        if (!result.isConfirmed) return;
+        amount = Math.floor(Number(result.value));
+    } else {
+        const raw = prompt(isAdd ? 'จำนวนที่เติม (ชิ้น):' : 'จำนวนที่เบิก (ชิ้น):', '1');
+        if (raw === null) return;
+        amount = Math.floor(Number(raw));
+    }
+    if (!Number.isFinite(amount) || amount <= 0) {
+        showAlert('จำนวนไม่ถูกต้อง', 'กรุณาระบุจำนวนมากกว่า 0', 'warning');
+        return;
+    }
+    if (!isAdd && amount > Number(item.quantity)) {
+        showAlert('สต็อกไม่พอ', `คงเหลือเพียง ${item.quantity} ชิ้น`, 'error');
+        return;
+    }
+    const delta = isAdd ? amount : -amount;
+    try {
+        if (stockOffline) {
+            item.quantity = Math.max(0, Number(item.quantity) + delta);
+            saveStockLocal();
+        } else {
+            await apiPost('/api/stock', { action: 'adjust', id: item.id, delta });
+            await loadStockData();
+        }
+        renderStock();
+        showAlert(isAdd ? 'เติมสต็อกแล้ว' : 'เบิกอุปกรณ์แล้ว', `${item.name} ${isAdd ? '+' : '−'}${amount} ชิ้น`, 'success');
+    } catch (err) {
+        showAlert('ทำรายการไม่สำเร็จ', err.message || 'ลองใหม่อีกครั้ง', 'error');
+    }
+}
+
+async function confirmRemoveStock(id) {
+    const item = stockItems.find((s) => String(s.id) === String(id));
+    if (!item) return;
+    let confirmed = true;
+    if (window.Swal) {
+        const result = await Swal.fire({
+            title: 'ลบรายการนี้?',
+            text: `"${item.name}" จะถูกลบออกจากสต็อก`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'ลบรายการ',
+            cancelButtonText: 'ยกเลิก',
+            confirmButtonColor: '#dc2626'
+        });
+        confirmed = result.isConfirmed;
+    } else {
+        confirmed = confirm(`ลบ "${item.name}" ออกจากสต็อก?`);
+    }
+    if (!confirmed) return;
+    try {
+        if (stockOffline) {
+            stockItems = stockItems.filter((s) => String(s.id) !== String(id));
+            saveStockLocal();
+        } else {
+            await apiPost('/api/stock', { action: 'remove', id: item.id });
+            await loadStockData();
+        }
+        renderStock();
+        showAlert('ลบรายการแล้ว', `${item.name} ถูกลบออกจากสต็อก`, 'success');
+    } catch (err) {
+        showAlert('ลบไม่สำเร็จ', err.message || 'ลองใหม่อีกครั้ง', 'error');
     }
 }
 
@@ -570,6 +804,7 @@ function bindDashboardEvents() {
     document.getElementById('btnRules')?.addEventListener('click', () => window.open(rulesUrl, '_blank'));
     document.getElementById('btnFundDeposit')?.addEventListener('click', () => handleFundTransaction('deposit'));
     document.getElementById('btnFundWithdraw')?.addEventListener('click', () => handleFundTransaction('withdraw'));
+    document.getElementById('btnAddStock')?.addEventListener('click', handleAddStock);
     document.getElementById('btnLogout')?.addEventListener('click', () => {
         sessionStorage.removeItem('loggedInUser');
         window.location.href = 'index.html';
@@ -593,6 +828,7 @@ async function initDashboard() {
     } catch (err) {
         showAlert('เชื่อมต่อฐานข้อมูลไม่สำเร็จ', 'กรุณารีเฟรชหน้าเว็บอีกครั้ง', 'error');
     }
+    await loadStockData();
 
     renderProfile();
     renderHistoryControls();
@@ -600,6 +836,7 @@ async function initDashboard() {
     renderTeamStatus();
     renderForceOut();
     renderCentralFund();
+    renderStock();
     updateActionButtons();
     if (!canViewMonitoring(currentUser)) {
         document.getElementById('adminSection')?.classList.add('hidden');
@@ -622,6 +859,18 @@ async function initDashboard() {
             }
         } catch (err) {
             // เน็ตสะดุดชั่วคราว — ข้ามไปรอรอบถัดไป
+        }
+        // อัปเดตสต็อกแบบเรียลไทม์ (ถ้ามี API ให้ใช้)
+        if (!stockOffline) {
+            try {
+                const updatedStock = await apiGet('/api/stock');
+                if (JSON.stringify(updatedStock) !== JSON.stringify(stockItems)) {
+                    stockItems = Array.isArray(updatedStock) ? updatedStock : [];
+                    renderStock();
+                }
+            } catch (err) {
+                // ข้ามไปรอรอบถัดไป
+            }
         }
     }, 3000);
 }

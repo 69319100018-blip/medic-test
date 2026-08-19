@@ -8,6 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700;800&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+<base target="_blank">
 </head>
 <body>
     <div class="bg-blob blob-1"></div>
@@ -34,6 +35,7 @@
         <nav class="dashboard-nav">
             <button class="nav-link active" data-target="overviewSection">ภาพรวม</button>
             <button class="nav-link" data-target="fundsSection">เงินกองกลาง</button>
+            <button class="nav-link" data-target="stockSection">📦 สต็อกอุปกรณ์</button>
             <button class="nav-link" data-target="historySection">ประวัติ</button>
             <button class="nav-link" data-target="adminSection">ตรวจสอบ</button>
         </nav>
@@ -72,7 +74,7 @@
                 </div>
                 <div class="fund-layout">
                     <div class="fund-card">
-                        <h3>กราฟวงกลมคำนวณเงิน</h3>
+                        <h3>แผนภูมิแท่งสรุปเงินกองกลาง</h3>
                         <div class="fund-chart-wrap">
                             <div id="fundChart" class="fund-chart"></div>
                             <div id="fundChartLegend" class="fund-legend"></div>
@@ -99,6 +101,66 @@
                         <div id="fundSummaryList" class="fund-summary-list"></div>
                         <div id="fundHistoryList" class="fund-history-list"></div>
                     </div>
+                </div>
+            </section>
+
+            <section class="panel panel-stock hidden" id="stockSection">
+                <div class="panel-header">
+                    <div>
+                        <p class="label">สต็อกอุปกรณ์</p>
+                        <h2>เพิ่มและตรวจสอบสต็อกอุปกรณ์</h2>
+                    </div>
+                    <span id="stockSummaryPill" class="date-pill">ทั้งหมด 0 รายการ</span>
+                </div>
+                <div class="stock-layout">
+                    <div class="fund-card">
+                        <h3>➕ เพิ่มสต็อกอุปกรณ์</h3>
+                        <label>
+                            ชื่ออุปกรณ์
+                            <input id="stockNameInput" type="text" placeholder="เช่น ถุงมือยาง, ชุด PPE, เวชภัณฑ์">
+                        </label>
+                        <label>
+                            จำนวนคงเหลือ (ชิ้น)
+                            <input id="stockQtyInput" type="number" min="0" step="1" placeholder="กรอกจำนวนที่มีอยู่">
+                        </label>
+                        <label>
+                            จำนวนขั้นต่ำที่ต้องมี (ชิ้น)
+                            <input id="stockMinInput" type="number" min="0" step="1" placeholder="ใช้คำนวณจำนวนที่ขาด">
+                        </label>
+                        <label>
+                            แหล่งที่มา / ผู้จัดหา
+                            <input id="stockSourceInput" type="text" placeholder="เช่น จัดซื้อจากบริษัท X, ได้รับบริจาค">
+                        </label>
+                        <div class="fund-actions">
+                            <button id="btnAddStock" class="btn btn-success" type="button">📦 เพิ่มสต็อก</button>
+                        </div>
+                        <p class="help-text">ผู้เพิ่มรายการ: <strong id="stockAddedByLabel">-</strong></p>
+                    </div>
+                    <div class="fund-card stock-overview-card">
+                        <h3>ภาพรวมสถานะสต็อก</h3>
+                        <div class="stock-stats">
+                            <div class="stock-stat">
+                                <span>รายการทั้งหมด</span>
+                                <strong id="stockStatTotal">0</strong>
+                            </div>
+                            <div class="stock-stat stock-stat-warn">
+                                <span>ใกล้หมด</span>
+                                <strong id="stockStatLow">0</strong>
+                            </div>
+                            <div class="stock-stat stock-stat-out">
+                                <span>ขาดสต็อก</span>
+                                <strong id="stockStatOut">0</strong>
+                            </div>
+                            <div class="stock-stat stock-stat-miss">
+                                <span>จำนวนที่ขาดรวม</span>
+                                <strong id="stockStatMissing">0 ชิ้น</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="stock-list-wrap">
+                    <h3 class="stock-list-title">รายการสต็อกทั้งหมด</h3>
+                    <div id="stockList" class="stock-list"></div>
                 </div>
             </section>
 
