@@ -774,6 +774,48 @@ label {
     gap: 12px;
 }
 
+.btn-warning {
+    background: linear-gradient(135deg, #f59e0b, #b45309);
+    color: white;
+}
+
+.fund-cumulative {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.fund-cum-item {
+    display: grid;
+    gap: 4px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    background: white;
+}
+
+.fund-cum-item span {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+.fund-cum-item strong {
+    font-size: 1.15rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.fund-cum-income strong {
+    color: var(--success);
+}
+
+.fund-cum-expense strong {
+    color: var(--danger);
+}
+
+#fundAdminCard {
+    grid-column: 1 / -1;
+}
+
 .topbar {
     display: flex;
     align-items: center;

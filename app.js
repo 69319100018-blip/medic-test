@@ -35,6 +35,7 @@ function getDefaultFundState() {
             deposit: 20000,
             reserve: 10000
         },
+        totals: { income: 0, expense: 0 },
         history: []
     };
 }
@@ -229,6 +230,10 @@ function canViewMonitoring(username) {
     return userProfiles[username]?.canViewMonitoring === true;
 }
 
+function isAdmin(username) {
+    return userProfiles[username]?.isAdmin === true;
+}
+
 const Toast = window.Swal ? Swal.mixin({
     toast: true,
     position: 'top-end',
@@ -293,6 +298,14 @@ function renderCentralFund() {
 
     animateMoneyText(balanceSummary, centralFund.balance, (v) => `ยอดรวม ${v.toLocaleString('th-TH')} บาท`);
     animateMoneyText(totalValue, centralFund.balance, (v) => `${v.toLocaleString('th-TH')} บาท`);
+
+    const incomeEl = document.getElementById('fundIncomeTotal');
+    const expenseEl = document.getElementById('fundExpenseTotal');
+    const income = Number(centralFund.totals?.income) || 0;
+    const expense = Number(centralFund.totals?.expense) || 0;
+    if (incomeEl) animateMoneyText(incomeEl, income, (v) => `${v.toLocaleString('th-TH')} บาท`);
+    if (expenseEl) animateMoneyText(expenseEl, expense, (v) => `${v.toLocaleString('th-TH')} บาท`);
+
     chart.classList.remove('bump');
     void chart.offsetWidth;
     chart.classList.add('bump');
@@ -376,6 +389,40 @@ async function handleFundTransaction(type) {
         noteInput.value = '';
         celebrate({ particleCount: 70, spread: 65, origin: { y: 0.6 }, colors: ['#fbbf24', '#f59e0b', '#22c55e'] });
         showAlert(`${type === 'deposit' ? 'ฝากเงิน' : 'ถอนเงิน'}สำเร็จ`, `จำนวน ${amount.toLocaleString('th-TH')} บาท เรียบร้อย`, 'success');
+    } catch (err) {
+        showAlert('ทำรายการไม่สำเร็จ', err.message || 'ลองใหม่อีกครั้ง', 'error');
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+// เพิ่มเงินฝาก/เงินสำรอง — เฉพาะแอดมิน/ผอ. เท่านั้น
+async function handleFundAdminAdd(target) {
+    if (!isAdmin(currentUser)) return;
+    const amountInput = document.getElementById('fundAdminAmountInput');
+    const noteInput = document.getElementById('fundAdminNoteInput');
+    const amount = Number(amountInput?.value);
+    if (!amountInput || !Number.isFinite(amount) || amount <= 0) {
+        showAlert('ข้อมูลไม่ถูกต้อง', 'กรุณากรอกจำนวนเงินที่มากกว่า 0', 'warning');
+        return;
+    }
+
+    const action = target === 'deposit' ? 'add_deposit' : 'add_reserve';
+    const btn = document.getElementById(target === 'deposit' ? 'btnFundAddDeposit' : 'btnFundAddReserve');
+    if (btn) btn.disabled = true;
+    try {
+        await apiPost('/api/fund', {
+            action,
+            amount,
+            note: noteInput?.value.trim() || '',
+            username: currentUser
+        });
+        await loadAllData();
+        renderCentralFund();
+        amountInput.value = '';
+        noteInput.value = '';
+        celebrate({ particleCount: 70, spread: 65, origin: { y: 0.6 }, colors: ['#fbbf24', '#f59e0b', '#22c55e'] });
+        showAlert('เพิ่มเงินสำเร็จ', `เพิ่ม${target === 'deposit' ? 'เงินฝาก' : 'เงินสำรอง'} ${amount.toLocaleString('th-TH')} บาท เรียบร้อย`, 'success');
     } catch (err) {
         showAlert('ทำรายการไม่สำเร็จ', err.message || 'ลองใหม่อีกครั้ง', 'error');
     } finally {
@@ -804,6 +851,8 @@ function bindDashboardEvents() {
     document.getElementById('btnRules')?.addEventListener('click', () => window.open(rulesUrl, '_blank'));
     document.getElementById('btnFundDeposit')?.addEventListener('click', () => handleFundTransaction('deposit'));
     document.getElementById('btnFundWithdraw')?.addEventListener('click', () => handleFundTransaction('withdraw'));
+    document.getElementById('btnFundAddDeposit')?.addEventListener('click', () => handleFundAdminAdd('deposit'));
+    document.getElementById('btnFundAddReserve')?.addEventListener('click', () => handleFundAdminAdd('reserve'));
     document.getElementById('btnAddStock')?.addEventListener('click', handleAddStock);
     document.getElementById('btnLogout')?.addEventListener('click', () => {
         sessionStorage.removeItem('loggedInUser');
@@ -844,6 +893,7 @@ async function initDashboard() {
             if (link.dataset.target === 'adminSection') link.classList.add('hidden');
         });
     }
+    document.getElementById('fundAdminCard')?.classList.toggle('hidden', !isAdmin(currentUser));
 
     // ดึงข้อมูลใหม่ทุก 3 วินาที — คนอื่นเข้าเวร/ฝากเงิน เราจะเห็นอัตโนมัติ
     realtimeInterval = setInterval(async () => {
