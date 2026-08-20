@@ -87,3 +87,20 @@ CREATE TABLE IF NOT EXISTS stock_withdrawals (
 );
 
 CREATE INDEX IF NOT EXISTS idx_stock_withdrawals_id_desc ON stock_withdrawals (id DESC);
+
+-- ============================================================
+-- ใหม่: ตารางทะเบียนรถ (ใช้กับ /api/vehicle)
+-- ทุกคนเพิ่ม/ดูรถของตัวเองได้ แอดมิน/ผอ. ดูของทุกคนได้
+-- ============================================================
+CREATE TABLE IF NOT EXISTS vehicles (
+    id SERIAL PRIMARY KEY,
+    username TEXT NOT NULL,          -- เจ้าของรถ (บัญชีที่ล็อกอิน)
+    plate TEXT NOT NULL,             -- เลขทะเบียน เช่น กข-1234, asd-2251
+    model TEXT NOT NULL,             -- รุ่น/ชื่อรถ เช่น Toyota Vios
+    date TEXT,                       -- วันที่เพิ่ม (แบบไทย)
+    time TEXT,                       -- เวลาที่เพิ่ม (แบบไทย)
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_vehicles_username ON vehicles (username);
+CREATE INDEX IF NOT EXISTS idx_vehicles_id_desc ON vehicles (id DESC);

@@ -41,6 +41,7 @@
             <button class="nav-link active" data-target="overviewSection">ภาพรวม</button>
             <button class="nav-link" data-target="fundsSection">เงินกองกลาง</button>
             <button class="nav-link" data-target="stockSection">📦 สต็อกอุปกรณ์</button>
+            <button class="nav-link" data-target="vehicleSection">🚗 ทะเบียนรถ</button>
             <button class="nav-link" data-target="historySection">ประวัติ</button>
             <button class="nav-link" data-target="stockHistorySection">📋 ประวัติการเบิก</button>
             <button class="nav-link" data-target="adminSection">ตรวจสอบ</button>
@@ -222,6 +223,41 @@
                 </div>
                 <div id="statusPanel" class="status-panel"></div>
                 <div id="forceOutPanel" class="forceout-panel hidden"></div>
+            </section>
+
+            <section class="panel panel-vehicle hidden" id="vehicleSection">
+                <div class="panel-header">
+                    <div>
+                        <p class="label">ทะเบียนรถ</p>
+                        <h2>รถของฉัน</h2>
+                    </div>
+                    <span id="vehicleSummaryPill" class="date-pill">ทั้งหมด 0 คัน</span>
+                </div>
+                <div class="stock-layout">
+                    <div class="fund-card">
+                        <h3>➕ เพิ่มทะเบียนรถ</h3>
+                        <label>
+                            เลขทะเบียน
+                            <input id="vehiclePlateInput" type="text" placeholder="เช่น กข-1234, asd-2251">
+                        </label>
+                        <label>
+                            รุ่น / ชื่อรถ
+                            <input id="vehicleModelInput" type="text" placeholder="เช่น Toyota Vios, Honda Click">
+                        </label>
+                        <div class="fund-actions">
+                            <button id="btnAddVehicle" class="btn btn-success" type="button">🚗 เพิ่มรถ</button>
+                        </div>
+                        <p class="help-text">เพิ่มในนามผู้ใช้งาน: <strong id="vehicleOwnerLabel">-</strong></p>
+                    </div>
+                    <div class="fund-card stock-overview-card">
+                        <h3>รถของฉันทั้งหมด</h3>
+                        <div id="vehicleMyList" class="stock-list"></div>
+                    </div>
+                </div>
+                <div class="stock-list-wrap hidden" id="vehicleAdminWrap">
+                    <h3 class="stock-list-title">🔍 ทะเบียนรถของแพทย์ทุกคน (สำหรับแอดมิน/ผอ.)</h3>
+                    <div id="vehicleAllList" class="stock-list"></div>
+                </div>
             </section>
 
             <section class="panel panel-history hidden" id="historySection">

@@ -26,8 +26,11 @@ let centralFund = null;
 let stockItems = [];
 let stockOffline = false;
 let stockWithdrawals = [];
+let vehicles = [];
+let vehicleOffline = false;
 const STOCK_LOCAL_KEY = 'medicStockItems';
 const STOCK_WITHDRAWALS_LOCAL_KEY = 'medicStockWithdrawals';
+const VEHICLE_LOCAL_KEY = 'medicVehicles';
 
 function getDefaultFundState() {
     return {
@@ -86,6 +89,26 @@ async function loadStockData() {
 
 function saveStockLocal() {
     localStorage.setItem(STOCK_LOCAL_KEY, JSON.stringify(stockItems));
+}
+
+// ดึงข้อมูลทะเบียนรถ — ถ้าไม่มี API จะใช้ข้อมูลในเครื่องแทน
+async function loadVehicleData() {
+    try {
+        const data = await apiGet('/api/vehicle');
+        vehicles = Array.isArray(data) ? data : [];
+        vehicleOffline = false;
+    } catch (err) {
+        vehicleOffline = true;
+        try {
+            vehicles = JSON.parse(localStorage.getItem(VEHICLE_LOCAL_KEY) || '[]');
+        } catch (e) {
+            vehicles = [];
+        }
+    }
+}
+
+function saveVehicleLocal() {
+    localStorage.setItem(VEHICLE_LOCAL_KEY, JSON.stringify(vehicles));
 }
 
 // ประวัติการเบิกอุปกรณ์ — เฉพาะแอดมิน/ผอ. เท่านั้นที่โหลด/เห็นได้
@@ -800,6 +823,144 @@ async function confirmRemoveStock(id) {
     }
 }
 
+// ============================================================
+// VEHICLE — ระบบทะเบียนรถ
+// ทุกคนเพิ่ม/ดูรถของตัวเองได้ แอดมิน/ผอ. ดูของทุกคนได้ในการ์ดแยก
+// ============================================================
+function vehicleItemHtml(v, { showOwner } = {}) {
+    const ownerName = userProfiles[v.username]?.name || v.username || 'ไม่ระบุ';
+    const canRemove = v.username === currentUser || isAdmin(currentUser);
+    return `
+        <div class="stock-item">
+            <div class="stock-item-head">
+                <div>
+                    <strong>${escapeHtml((v.plate || '').toUpperCase())}</strong>
+                    <span class="stock-meta">${escapeHtml(v.model)}${showOwner ? ` • เจ้าของ: ${escapeHtml(ownerName)}` : ''}${v.date ? ` • เพิ่มเมื่อ ${v.date} ${v.time || ''}` : ''}</span>
+                </div>
+            </div>
+            ${canRemove ? `
+            <div class="stock-item-actions">
+                <button class="btn btn-danger btn-small vehicle-remove" data-id="${v.id}" type="button">ลบ</button>
+            </div>` : ''}
+        </div>`;
+}
+
+function renderVehicles() {
+    const ownerLabel = document.getElementById('vehicleOwnerLabel');
+    if (ownerLabel) ownerLabel.textContent = userProfiles[currentUser]?.name || currentUser || '-';
+
+    const myVehicles = vehicles.filter((v) => v.username === currentUser);
+    const summaryPill = document.getElementById('vehicleSummaryPill');
+    if (summaryPill) summaryPill.textContent = `ทั้งหมด ${myVehicles.length} คัน`;
+
+    const myList = document.getElementById('vehicleMyList');
+    if (myList) {
+        myList.innerHTML = myVehicles.length
+            ? myVehicles.map((v) => vehicleItemHtml(v, { showOwner: false })).join('')
+            : '<div class="log-item"><strong>ยังไม่มีรถของคุณ</strong><span>เพิ่มทะเบียนรถคันแรกจากฟอร์มด้านบน</span></div>';
+        myList.querySelectorAll('.vehicle-remove').forEach((btn) => {
+            btn.addEventListener('click', () => confirmRemoveVehicle(btn.dataset.id));
+        });
+    }
+
+    const adminWrap = document.getElementById('vehicleAdminWrap');
+    const allList = document.getElementById('vehicleAllList');
+    if (adminWrap && allList) {
+        const canSeeAll = canViewMonitoring(currentUser) || isAdmin(currentUser);
+        adminWrap.classList.toggle('hidden', !canSeeAll);
+        if (canSeeAll) {
+            allList.innerHTML = vehicles.length
+                ? vehicles.map((v) => vehicleItemHtml(v, { showOwner: true })).join('')
+                : '<div class="log-item"><strong>ยังไม่มีรถในระบบ</strong><span>ยังไม่มีใครเพิ่มทะเบียนรถ</span></div>';
+            allList.querySelectorAll('.vehicle-remove').forEach((btn) => {
+                btn.addEventListener('click', () => confirmRemoveVehicle(btn.dataset.id));
+            });
+        }
+    }
+    staggerChildren(myList);
+}
+
+// เพิ่มทะเบียนรถ — ผูกกับบัญชีที่ล็อกอินอัตโนมัติ
+async function handleAddVehicle() {
+    const plateInput = document.getElementById('vehiclePlateInput');
+    const modelInput = document.getElementById('vehicleModelInput');
+    const plate = plateInput?.value.trim();
+    const model = modelInput?.value.trim();
+    if (!plate || !model) {
+        showAlert('ข้อมูลไม่ครบ', 'กรุณากรอกเลขทะเบียนและรุ่นรถให้ครบ', 'warning');
+        if (!plate) { plateInput?.classList.add('input-error'); setTimeout(() => plateInput?.classList.remove('input-error'), 700); }
+        if (!model) { modelInput?.classList.add('input-error'); setTimeout(() => modelInput?.classList.remove('input-error'), 700); }
+        return;
+    }
+
+    const btn = document.getElementById('btnAddVehicle');
+    if (btn) btn.disabled = true;
+    try {
+        if (vehicleOffline) {
+            const now = new Date();
+            vehicles.unshift({
+                id: Date.now(),
+                username: currentUser,
+                plate,
+                model,
+                date: now.toLocaleDateString('th-TH'),
+                time: now.toLocaleTimeString('th-TH', { hour12: false })
+            });
+            saveVehicleLocal();
+        } else {
+            await apiPost('/api/vehicle', { action: 'add', username: currentUser, plate, model });
+            await loadVehicleData();
+        }
+        renderVehicles();
+        plateInput.value = '';
+        modelInput.value = '';
+        celebrate({ particleCount: 70, spread: 65, origin: { y: 0.6 }, colors: ['#2563eb', '#16a34a', '#fbbf24'] });
+        showAlert('เพิ่มรถสำเร็จ', `${plate.toUpperCase()} • ${model}`, 'success');
+    } catch (err) {
+        showAlert('เพิ่มรถไม่สำเร็จ', err.message || 'ลองใหม่อีกครั้ง', 'error');
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+async function confirmRemoveVehicle(id) {
+    const item = vehicles.find((v) => String(v.id) === String(id));
+    if (!item) return;
+    if (item.username !== currentUser && !isAdmin(currentUser)) {
+        showAlert('ไม่มีสิทธิ์', 'ลบได้เฉพาะรถของตัวเอง หรือแอดมิน/ผอ. เท่านั้น', 'warning');
+        return;
+    }
+    let confirmed = true;
+    if (window.Swal) {
+        const result = await Swal.fire({
+            title: 'ลบรายการนี้?',
+            text: `"${item.plate.toUpperCase()}" จะถูกลบออกจากทะเบียนรถ`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'ลบรายการ',
+            cancelButtonText: 'ยกเลิก',
+            confirmButtonColor: '#dc2626'
+        });
+        confirmed = result.isConfirmed;
+    } else {
+        confirmed = confirm(`ลบ "${item.plate.toUpperCase()}" ออกจากทะเบียนรถ?`);
+    }
+    if (!confirmed) return;
+    try {
+        if (vehicleOffline) {
+            vehicles = vehicles.filter((v) => String(v.id) !== String(id));
+            saveVehicleLocal();
+        } else {
+            await apiPost('/api/vehicle', { action: 'remove', id: item.id, username: currentUser });
+            await loadVehicleData();
+        }
+        renderVehicles();
+        showAlert('ลบรายการแล้ว', `${item.plate.toUpperCase()} ถูกลบออกจากทะเบียนรถ`, 'success');
+    } catch (err) {
+        showAlert('ลบไม่สำเร็จ', err.message || 'ลองใหม่อีกครั้ง', 'error');
+    }
+}
+
 function renderProfile() {
     const profile = userProfiles[currentUser];
     if (!profile) return;
@@ -1022,6 +1183,7 @@ function bindDashboardEvents() {
     document.getElementById('btnFundAddDeposit')?.addEventListener('click', () => handleFundAdminAdd('deposit'));
     document.getElementById('btnFundAddReserve')?.addEventListener('click', () => handleFundAdminAdd('reserve'));
     document.getElementById('btnAddStock')?.addEventListener('click', handleAddStock);
+    document.getElementById('btnAddVehicle')?.addEventListener('click', handleAddVehicle);
     document.getElementById('btnLogout')?.addEventListener('click', () => {
         sessionStorage.removeItem('loggedInUser');
         window.location.href = 'index.html';
@@ -1046,6 +1208,7 @@ async function initDashboard() {
         showAlert('เชื่อมต่อฐานข้อมูลไม่สำเร็จ', 'กรุณารีเฟรชหน้าเว็บอีกครั้ง', 'error');
     }
     await loadStockData();
+    await loadVehicleData();
 
     renderProfile();
     renderHistoryControls();
@@ -1054,6 +1217,7 @@ async function initDashboard() {
     renderForceOut();
     renderCentralFund();
     renderStock();
+    renderVehicles();
     updateActionButtons();
     if (!canViewMonitoring(currentUser)) {
         document.getElementById('adminSection')?.classList.add('hidden');
@@ -1106,6 +1270,18 @@ async function initDashboard() {
                 } catch (err) {
                     // ข้ามไปรอรอบถัดไป
                 }
+            }
+        }
+        // อัปเดตทะเบียนรถแบบเรียลไทม์ (ถ้ามี API ให้ใช้)
+        if (!vehicleOffline) {
+            try {
+                const updatedVehicles = await apiGet('/api/vehicle');
+                if (JSON.stringify(updatedVehicles) !== JSON.stringify(vehicles)) {
+                    vehicles = Array.isArray(updatedVehicles) ? updatedVehicles : [];
+                    renderVehicles();
+                }
+            } catch (err) {
+                // ข้ามไปรอรอบถัดไป
             }
         }
     }, 3000);
