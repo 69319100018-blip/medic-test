@@ -66,7 +66,9 @@ export default async function handler(req, res) {
                 return res.status(403).json({ error: 'เฉพาะแอดมินหรือ ผอ. เท่านั้นที่ทำรายการนี้ได้' });
             }
 
-            const state = await sql`SELECT balance::float8 AS balance FROM fund_state WHERE id = 1`;
+            const state = await sql`
+                SELECT balance::float8 AS balance, cash::float8 AS cash, reserve::float8 AS reserve
+                FROM fund_state WHERE id = 1`;
             const balance = state[0]?.balance ?? 0;
             if (action === 'withdraw' && value > balance) {
                 return res.status(409).json({ error: 'ยอดเงินในกองกลางไม่เพียงพอ' });
@@ -75,13 +77,26 @@ export default async function handler(req, res) {
             const t = thaiNow();
             let typeText;
 
-            if (action === 'deposit' || action === 'withdraw') {
-                const delta = action === 'deposit' ? value : -value;
+            if (action === 'deposit') {
                 await sql`
                     UPDATE fund_state
-                    SET balance = balance + ${delta}, cash = cash + ${delta}
+                    SET balance = balance + ${value}, cash = cash + ${value}
                     WHERE id = 1`;
-                typeText = action === 'deposit' ? 'ฝากเงิน' : 'ถอนเงิน';
+                typeText = 'ฝากเงิน';
+            } else if (action === 'withdraw') {
+                // ถอนเงิน: หักจาก "เงินสด" ก่อน ถ้าเงินสดไม่พอ ส่วนที่ขาดจะไปหักจาก "เงินสำรอง"
+                // เพื่อไม่ให้ยอดเงินสดติดลบ (เงินฝากจะไม่ถูกแตะต้องจากการถอนปกติ)
+                const cash = state[0]?.cash ?? 0;
+                const reserve = state[0]?.reserve ?? 0;
+                const cashDeduct = Math.min(value, cash);
+                const reserveDeduct = Math.min(value - cashDeduct, reserve);
+                await sql`
+                    UPDATE fund_state
+                    SET balance = balance - ${value},
+                        cash = cash - ${cashDeduct},
+                        reserve = reserve - ${reserveDeduct}
+                    WHERE id = 1`;
+                typeText = 'ถอนเงิน';
             } else if (action === 'add_deposit') {
                 await sql`
                     UPDATE fund_state
