@@ -54,13 +54,36 @@ CREATE TABLE IF NOT EXISTS stock_items (
     min_quantity INTEGER NOT NULL DEFAULT 0, -- จำนวนขั้นต่ำที่ต้องมี (ใช้คำนวณ "ขาด")
     source TEXT DEFAULT '',                  -- แหล่งที่มา / ผู้จัดหา
     added_by TEXT DEFAULT '',                -- ชื่อคนเพิ่มรายการ (username ที่ล็อกอิน)
+    manual_status TEXT DEFAULT 'auto',       -- สถานะที่ตั้งเอง: auto/ready/ordered/waiting/damaged
     date TEXT DEFAULT '',                    -- วันที่เพิ่ม (แบบไทย)
     time TEXT DEFAULT '',                    -- เวลาที่เพิ่ม (แบบไทย)
     updated_at TIMESTAMPTZ DEFAULT NOW(),    -- อัปเดตล่าสุด (เติม/เบิกสต็อก)
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- เผื่อฐานข้อมูลเดิมเคยสร้างตาราง stock_items ไว้ก่อนมีคอลัมน์นี้
+ALTER TABLE stock_items ADD COLUMN IF NOT EXISTS manual_status TEXT DEFAULT 'auto';
+
 -- ดัชนีช่วยให้เรียงรายการล่าสุดเร็วขึ้น (ไม่บังคับ แต่แนะนำ)
 CREATE INDEX IF NOT EXISTS idx_stock_items_id_desc ON stock_items (id DESC);
 CREATE INDEX IF NOT EXISTS idx_shift_events_username ON shift_events (username);
 CREATE INDEX IF NOT EXISTS idx_fund_history_id_desc ON fund_history (id DESC);
+
+-- ============================================================
+-- ใหม่: ตารางประวัติการเบิกอุปกรณ์ (ใช้กับ /api/stock action=withdrawals)
+-- บันทึกทุกครั้งที่มีการ "ใช้/เบิก" สต็อก (delta ติดลบ)
+-- ดูได้เฉพาะแอดมิน/ผอ. ผ่านเมนู "ประวัติการเบิก"
+-- ============================================================
+CREATE TABLE IF NOT EXISTS stock_withdrawals (
+    id SERIAL PRIMARY KEY,
+    item_id INTEGER,                 -- อ้างอิงถึง stock_items.id (อาจถูกลบภายหลังได้ จึงไม่ทำ FK บังคับ)
+    item_name TEXT NOT NULL,         -- ชื่ออุปกรณ์ ณ เวลาที่เบิก (กันกรณีรายการถูกลบ/แก้ชื่อภายหลัง)
+    requester TEXT NOT NULL,         -- ชื่อผู้เบิก (คนที่มาขอเบิกของจริง ๆ ไม่ใช่ผู้ล็อกอิน)
+    username TEXT,                   -- บัญชีผู้ล็อกอินที่กดทำรายการ
+    quantity INTEGER NOT NULL,       -- จำนวนที่เบิกออก (ค่าบวกเสมอ)
+    date TEXT,                       -- วันที่แบบไทย
+    time TEXT,                       -- เวลาแบบไทย
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_stock_withdrawals_id_desc ON stock_withdrawals (id DESC);

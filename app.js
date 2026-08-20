@@ -25,7 +25,9 @@ let loginBgInterval = null;
 let centralFund = null;
 let stockItems = [];
 let stockOffline = false;
+let stockWithdrawals = [];
 const STOCK_LOCAL_KEY = 'medicStockItems';
+const STOCK_WITHDRAWALS_LOCAL_KEY = 'medicStockWithdrawals';
 
 function getDefaultFundState() {
     return {
@@ -84,6 +86,51 @@ async function loadStockData() {
 
 function saveStockLocal() {
     localStorage.setItem(STOCK_LOCAL_KEY, JSON.stringify(stockItems));
+}
+
+// ประวัติการเบิกอุปกรณ์ — เฉพาะแอดมิน/ผอ. เท่านั้นที่โหลด/เห็นได้
+async function loadStockWithdrawals() {
+    if (!canViewMonitoring(currentUser)) return;
+    try {
+        stockWithdrawals = await apiGet(`/api/stock?view=withdrawals&username=${encodeURIComponent(currentUser)}`);
+        if (!Array.isArray(stockWithdrawals)) stockWithdrawals = [];
+    } catch (err) {
+        try {
+            stockWithdrawals = JSON.parse(localStorage.getItem(STOCK_WITHDRAWALS_LOCAL_KEY) || '[]');
+        } catch (e) {
+            stockWithdrawals = [];
+        }
+    }
+}
+
+function saveStockWithdrawalsLocal() {
+    localStorage.setItem(STOCK_WITHDRAWALS_LOCAL_KEY, JSON.stringify(stockWithdrawals));
+}
+
+function renderStockWithdrawals() {
+    const list = document.getElementById('stockHistoryList');
+    const summary = document.getElementById('stockHistorySummary');
+    if (!list) return;
+    if (summary) summary.textContent = `ทั้งหมด ${stockWithdrawals.length} รายการ`;
+
+    if (!stockWithdrawals.length) {
+        list.innerHTML = '<div class="log-item"><strong>ยังไม่มีประวัติการเบิก</strong><span>รายการเบิกอุปกรณ์จะแสดงที่นี่</span></div>';
+        return;
+    }
+
+    list.innerHTML = stockWithdrawals.map((w) => `
+        <div class="fund-history-item">
+            <div>
+                <strong>${escapeHtml(w.itemName)}</strong>
+                <span>ผู้เบิก: ${escapeHtml(w.requester)} • บันทึกโดย ${escapeHtml(userProfiles[w.username]?.name || w.username || 'ไม่ระบุ')}</span>
+            </div>
+            <div class="fund-history-meta">
+                <strong>−${Number(w.quantity).toLocaleString('th-TH')} ชิ้น</strong>
+                <span>${w.date} ${w.time}</span>
+            </div>
+        </div>
+    `).join('');
+    staggerChildren(list);
 }
 
 function escapeHtml(text) {
@@ -577,30 +624,86 @@ async function handleAddStock() {
     }
 }
 
-// เติม/เบิกสต็อก — ถามจำนวนก่อนปรับ
+// เติม/เบิกสต็อก — เติมถามแค่จำนวน / เบิกต้องระบุ "ผู้เบิก" + จำนวนเสมอ
 async function promptAdjustStock(id, direction) {
     const item = stockItems.find((s) => String(s.id) === String(id));
     if (!item) return;
     const isAdd = direction > 0;
     let amount = 1;
-    if (window.Swal) {
-        const result = await Swal.fire({
-            title: isAdd ? `เติมสต็อก "${item.name}"` : `ใช้/เบิก "${item.name}"`,
-            input: 'number',
-            inputValue: 1,
-            inputAttributes: { min: 1, step: 1 },
-            showCancelButton: true,
-            confirmButtonText: isAdd ? 'เติมสต็อก' : 'เบิกออก',
-            cancelButtonText: 'ยกเลิก',
-            confirmButtonColor: isAdd ? '#16a34a' : '#dc2626'
-        });
-        if (!result.isConfirmed) return;
-        amount = Math.floor(Number(result.value));
+    let requester = '';
+
+    if (isAdd) {
+        // เติมสต็อก — ถามแค่จำนวนเหมือนเดิม
+        if (window.Swal) {
+            const result = await Swal.fire({
+                title: `เติมสต็อก "${item.name}"`,
+                input: 'number',
+                inputValue: 1,
+                inputAttributes: { min: 1, step: 1 },
+                showCancelButton: true,
+                confirmButtonText: 'เติมสต็อก',
+                cancelButtonText: 'ยกเลิก',
+                confirmButtonColor: '#16a34a'
+            });
+            if (!result.isConfirmed) return;
+            amount = Math.floor(Number(result.value));
+        } else {
+            const raw = prompt('จำนวนที่เติม (ชิ้น):', '1');
+            if (raw === null) return;
+            amount = Math.floor(Number(raw));
+        }
     } else {
-        const raw = prompt(isAdd ? 'จำนวนที่เติม (ชิ้น):' : 'จำนวนที่เบิก (ชิ้น):', '1');
-        if (raw === null) return;
-        amount = Math.floor(Number(raw));
+        // ใช้/เบิก — ต้องกรอกชื่อผู้เบิกด้วยเสมอ เพื่อให้แอดมิน/ผอ. ตรวจสอบย้อนหลังได้
+        if (window.Swal) {
+            const result = await Swal.fire({
+                title: `ใช้/เบิก "${item.name}"`,
+                html: `
+                    <div style="text-align:left; display:grid; gap:10px;">
+                        <label style="display:grid; gap:4px; font-size:14px;">
+                            ชื่อผู้เบิก
+                            <input id="swalRequesterInput" class="swal2-input" style="margin:0;" placeholder="ชื่อผู้เบิกอุปกรณ์" autocomplete="off">
+                        </label>
+                        <label style="display:grid; gap:4px; font-size:14px;">
+                            จำนวนที่เบิก (ชิ้น)
+                            <input id="swalAmountInput" type="number" class="swal2-input" style="margin:0;" min="1" step="1" value="1">
+                        </label>
+                    </div>`,
+                showCancelButton: true,
+                confirmButtonText: 'เบิกออก',
+                cancelButtonText: 'ยกเลิก',
+                confirmButtonColor: '#dc2626',
+                focusConfirm: false,
+                preConfirm: () => {
+                    const requesterVal = document.getElementById('swalRequesterInput')?.value.trim();
+                    const amountVal = Math.floor(Number(document.getElementById('swalAmountInput')?.value));
+                    if (!requesterVal) {
+                        Swal.showValidationMessage('กรุณากรอกชื่อผู้เบิก');
+                        return false;
+                    }
+                    if (!Number.isFinite(amountVal) || amountVal <= 0) {
+                        Swal.showValidationMessage('กรุณาระบุจำนวนมากกว่า 0');
+                        return false;
+                    }
+                    return { requesterVal, amountVal };
+                }
+            });
+            if (!result.isConfirmed) return;
+            requester = result.value.requesterVal;
+            amount = result.value.amountVal;
+        } else {
+            const nameRaw = prompt('ชื่อผู้เบิกอุปกรณ์:', '');
+            if (nameRaw === null) return;
+            requester = nameRaw.trim();
+            if (!requester) {
+                showAlert('ข้อมูลไม่ครบ', 'กรุณาระบุชื่อผู้เบิก', 'warning');
+                return;
+            }
+            const raw = prompt('จำนวนที่เบิก (ชิ้น):', '1');
+            if (raw === null) return;
+            amount = Math.floor(Number(raw));
+        }
     }
+
     if (!Number.isFinite(amount) || amount <= 0) {
         showAlert('จำนวนไม่ถูกต้อง', 'กรุณาระบุจำนวนมากกว่า 0', 'warning');
         return;
@@ -614,12 +717,31 @@ async function promptAdjustStock(id, direction) {
         if (stockOffline) {
             item.quantity = Math.max(0, Number(item.quantity) + delta);
             saveStockLocal();
+            if (!isAdd) {
+                const now = new Date();
+                stockWithdrawals.unshift({
+                    itemId: item.id,
+                    itemName: item.name,
+                    requester,
+                    username: currentUser,
+                    quantity: amount,
+                    date: now.toLocaleDateString('th-TH'),
+                    time: now.toLocaleTimeString('th-TH', { hour12: false })
+                });
+                saveStockWithdrawalsLocal();
+            }
         } else {
-            await apiPost('/api/stock', { action: 'adjust', id: item.id, delta });
+            await apiPost('/api/stock', { action: 'adjust', id: item.id, delta, requester, username: currentUser });
             await loadStockData();
+            if (!isAdd && canViewMonitoring(currentUser)) await loadStockWithdrawals();
         }
         renderStock();
-        showAlert(isAdd ? 'เติมสต็อกแล้ว' : 'เบิกอุปกรณ์แล้ว', `${item.name} ${isAdd ? '+' : '−'}${amount} ชิ้น`, 'success');
+        if (!isAdd && canViewMonitoring(currentUser)) renderStockWithdrawals();
+        showAlert(
+            isAdd ? 'เติมสต็อกแล้ว' : 'เบิกอุปกรณ์แล้ว',
+            isAdd ? `${item.name} +${amount} ชิ้น` : `${item.name} −${amount} ชิ้น • ผู้เบิก: ${escapeHtml(requester)}`,
+            'success'
+        );
     } catch (err) {
         showAlert('ทำรายการไม่สำเร็จ', err.message || 'ลองใหม่อีกครั้ง', 'error');
     }
@@ -863,7 +985,7 @@ function openUserHistory(username) {
 function handleMenuSwitch(event) {
     const target = event.currentTarget.dataset.target;
     if (!target) return;
-    if (target === 'adminSection' && !canViewMonitoring(currentUser)) {
+    if ((target === 'adminSection' || target === 'stockHistorySection') && !canViewMonitoring(currentUser)) {
         showAlert('ไม่มีสิทธิ์เข้าถึง', 'เฉพาะผู้ใช้ที่มีสิทธิ์เท่านั้น', 'warning');
         return;
     }
@@ -876,6 +998,9 @@ function handleMenuSwitch(event) {
             section.classList.add('hidden');
         }
     });
+    if (target === 'stockHistorySection') {
+        loadStockWithdrawals().then(renderStockWithdrawals);
+    }
 }
 
 function handleTabSwitch(event) {
@@ -932,9 +1057,15 @@ async function initDashboard() {
     updateActionButtons();
     if (!canViewMonitoring(currentUser)) {
         document.getElementById('adminSection')?.classList.add('hidden');
+        document.getElementById('stockHistorySection')?.classList.add('hidden');
         document.querySelectorAll('.nav-link').forEach((link) => {
-            if (link.dataset.target === 'adminSection') link.classList.add('hidden');
+            if (link.dataset.target === 'adminSection' || link.dataset.target === 'stockHistorySection') {
+                link.classList.add('hidden');
+            }
         });
+    } else {
+        await loadStockWithdrawals();
+        renderStockWithdrawals();
     }
     document.getElementById('fundAdminCard')?.classList.toggle('hidden', !isAdmin(currentUser));
 
@@ -963,6 +1094,18 @@ async function initDashboard() {
                 }
             } catch (err) {
                 // ข้ามไปรอรอบถัดไป
+            }
+            // อัปเดตประวัติการเบิกแบบเรียลไทม์ — เฉพาะแอดมิน/ผอ.
+            if (canViewMonitoring(currentUser)) {
+                try {
+                    const updatedWithdrawals = await apiGet(`/api/stock?view=withdrawals&username=${encodeURIComponent(currentUser)}`);
+                    if (JSON.stringify(updatedWithdrawals) !== JSON.stringify(stockWithdrawals)) {
+                        stockWithdrawals = Array.isArray(updatedWithdrawals) ? updatedWithdrawals : [];
+                        renderStockWithdrawals();
+                    }
+                } catch (err) {
+                    // ข้ามไปรอรอบถัดไป
+                }
             }
         }
     }, 3000);

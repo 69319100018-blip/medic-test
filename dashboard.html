@@ -42,6 +42,7 @@
             <button class="nav-link" data-target="fundsSection">เงินกองกลาง</button>
             <button class="nav-link" data-target="stockSection">📦 สต็อกอุปกรณ์</button>
             <button class="nav-link" data-target="historySection">ประวัติ</button>
+            <button class="nav-link" data-target="stockHistorySection">📋 ประวัติการเบิก</button>
             <button class="nav-link" data-target="adminSection">ตรวจสอบ</button>
         </nav>
 
@@ -195,6 +196,17 @@
                     <h3 class="stock-list-title">รายการสต็อกทั้งหมด</h3>
                     <div id="stockList" class="stock-list"></div>
                 </div>
+            </section>
+
+            <section class="panel panel-history hidden" id="stockHistorySection">
+                <div class="panel-header">
+                    <div>
+                        <p class="label">เฉพาะแอดมิน / ผอ.</p>
+                        <h2>ประวัติการเบิกอุปกรณ์</h2>
+                    </div>
+                    <span id="stockHistorySummary" class="date-pill">ทั้งหมด 0 รายการ</span>
+                </div>
+                <div id="stockHistoryList" class="fund-history-list"></div>
             </section>
 
             <section class="panel panel-status hidden" id="adminSection">
