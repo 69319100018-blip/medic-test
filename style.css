@@ -450,7 +450,10 @@ label {
 /* Admin panel spans full width when visible */
 #adminSection,
 #fundsSection,
-#stockSection {
+#stockSection,
+#vehicleSection,
+#historySection,
+#stockHistorySection {
     grid-column: 1 / -1;
 }
 
