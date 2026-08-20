@@ -66,14 +66,6 @@ export default async function handler(req, res) {
                 return res.status(403).json({ error: 'เฉพาะแอดมินหรือ ผอ. เท่านั้นที่ทำรายการนี้ได้' });
             }
 
-            const state = await sql`
-                SELECT balance::float8 AS balance, cash::float8 AS cash, reserve::float8 AS reserve
-                FROM fund_state WHERE id = 1`;
-            const balance = state[0]?.balance ?? 0;
-            if (action === 'withdraw' && value > balance) {
-                return res.status(409).json({ error: 'ยอดเงินในกองกลางไม่เพียงพอ' });
-            }
-
             const t = thaiNow();
             let typeText;
 
@@ -84,18 +76,45 @@ export default async function handler(req, res) {
                     WHERE id = 1`;
                 typeText = 'ฝากเงิน';
             } else if (action === 'withdraw') {
-                // ถอนเงิน: หักจาก "เงินสด" ก่อน ถ้าเงินสดไม่พอ ส่วนที่ขาดจะไปหักจาก "เงินสำรอง"
-                // เพื่อไม่ให้ยอดเงินสดติดลบ (เงินฝากจะไม่ถูกแตะต้องจากการถอนปกติ)
-                const cash = state[0]?.cash ?? 0;
-                const reserve = state[0]?.reserve ?? 0;
-                const cashDeduct = Math.min(value, cash);
-                const reserveDeduct = Math.min(value - cashDeduct, reserve);
+                // ดึงสถานะปัจจุบัน
+                const state = await sql`
+                    SELECT balance::float8 AS balance, cash::float8 AS cash,
+                           deposit::float8 AS deposit, reserve::float8 AS reserve
+                    FROM fund_state WHERE id = 1`;
+                const { balance, cash, deposit, reserve } = state[0] || {};
+
+                if (value > balance) {
+                    return res.status(409).json({ error: 'ยอดเงินในกองกลางไม่เพียงพอ' });
+                }
+
+                let remaining = value;
+
+                // 1. หักจากเงินสดก่อน
+                const cashDeduct = Math.min(cash, remaining);
+                remaining -= cashDeduct;
+
+                // 2. ถ้ายังไม่พอ หักจากเงินสำรอง
+                let reserveDeduct = 0;
+                if (remaining > 0) {
+                    reserveDeduct = Math.min(reserve, remaining);
+                    remaining -= reserveDeduct;
+                }
+
+                // 3. ถ้ายังไม่พอ หักจากเงินฝาก
+                let depositDeduct = 0;
+                if (remaining > 0) {
+                    depositDeduct = Math.min(deposit, remaining);
+                    remaining -= depositDeduct;
+                }
+
                 await sql`
                     UPDATE fund_state
                     SET balance = balance - ${value},
                         cash = cash - ${cashDeduct},
-                        reserve = reserve - ${reserveDeduct}
+                        reserve = reserve - ${reserveDeduct},
+                        deposit = deposit - ${depositDeduct}
                     WHERE id = 1`;
+
                 typeText = 'ถอนเงิน';
             } else if (action === 'add_deposit') {
                 await sql`
