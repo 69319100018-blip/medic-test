@@ -307,10 +307,10 @@ function isAdmin(username) {
 function canManageStock(username) {
     const profile = userProfiles[username];
     if (!profile) return false;
-    // แอดมิน, ผอ., รองผอ. สามารถจัดการสถานะสต็อกได้
+    // เฉพาะแอดมิน และ ผู้อำนวยการ (ไม่ใช่รองผอ.) เท่านั้นที่จัดการสต็อกได้
     if (profile.isAdmin) return true;
     const role = (profile.role || '').toLowerCase();
-    return role.includes('ผู้อำนวยการ') || role.includes('รอง');
+    return role.includes('ผู้อำนวยการ') && !role.includes('รอง');
 }
 
 const Toast = window.Swal ? Swal.mixin({

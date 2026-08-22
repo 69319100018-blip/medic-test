@@ -8,6 +8,9 @@
 import { neon } from '@neondatabase/serverless';
 
 const sql = neon(process.env.DATABASE_URL);
+
+// เฉพาะแอดมิน/ผอ. เท่านั้นที่จัดการสต็อกได้ (ไม่ใช่รองผอ.)
+const ADMIN_USERS = ['talos blackagency'];
 const TZ = 'Asia/Bangkok';
 
 // เฉพาะแอดมิน/ผอ. เท่านั้นที่ดูประวัติการเบิกได้ (ให้ตรงกับ ADMIN_USERS ใน fund.js)
@@ -70,6 +73,9 @@ export default async function handler(req, res) {
             const { action } = body;
 
             if (action === 'add') {
+                if (!ADMIN_USERS.includes(body.username)) {
+                    return res.status(403).json({ error: 'เฉพาะแอดมินหรือ ผอ. เท่านั้นที่เพิ่มสต็อกได้' });
+                }
                 const { name, quantity, minQuantity, source, username, manualStatus } = body;
                 const trimmedName = (name || '').trim();
                 if (!trimmedName) {
@@ -127,6 +133,9 @@ export default async function handler(req, res) {
             }
 
             if (action === 'set_status') {
+                if (!ADMIN_USERS.includes(body.username)) {
+                    return res.status(403).json({ error: 'เฉพาะแอดมินหรือ ผอ. เท่านั้นที่เปลี่ยนสถานะสต็อกได้' });
+                }
                 const { id, status } = body;
                 if (!id || !status) {
                     return res.status(400).json({ error: 'ข้อมูลไม่ถูกต้อง' });
@@ -138,6 +147,9 @@ export default async function handler(req, res) {
             }
 
             if (action === 'remove') {
+                if (!ADMIN_USERS.includes(body.username)) {
+                    return res.status(403).json({ error: 'เฉพาะแอดมินหรือ ผอ. เท่านั้นที่ลบสต็อกได้' });
+                }
                 const { id } = body;
                 if (!id) return res.status(400).json({ error: 'ข้อมูลไม่ถูกต้อง' });
                 await sql`DELETE FROM stock_items WHERE id = ${id}`;
