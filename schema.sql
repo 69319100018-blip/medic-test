@@ -104,3 +104,8 @@ CREATE TABLE IF NOT EXISTS vehicles (
 
 CREATE INDEX IF NOT EXISTS idx_vehicles_username ON vehicles (username);
 CREATE INDEX IF NOT EXISTS idx_vehicles_id_desc ON vehicles (id DESC);
+
+-- ============================================================
+-- อัปเดต: เพิ่มคอลัมน์ราคาในประวัติการเบิก
+-- ============================================================
+ALTER TABLE stock_withdrawals ADD COLUMN IF NOT EXISTS price NUMERIC DEFAULT 0;

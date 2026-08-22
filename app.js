@@ -149,7 +149,7 @@ function renderStockWithdrawals() {
             </div>
             <div class="fund-history-meta">
                 <strong>−${Number(w.quantity).toLocaleString('th-TH')} ชิ้น</strong>
-                <span>${w.date} ${w.time}</span>
+                <span>${w.date} ${w.time}${w.price ? ` • ราคา ${Number(w.price).toLocaleString('th-TH')} บาท/ชิ้น` : ''}</span>
             </div>
         </div>
     `).join('');
@@ -556,6 +556,7 @@ function renderStock() {
         return;
     }
 
+    const isManager = canManageStock(currentUser);
     list.innerHTML = stockItems.map((item, i) => {
         const s = statuses[i];
         const addedByName = userProfiles[item.addedBy]?.name || item.addedBy || 'ไม่ระบุ';
@@ -564,21 +565,21 @@ function renderStock() {
             <div class="stock-item-head">
                 <div>
                     <strong>${escapeHtml(item.name)}</strong>
-                    <span class="stock-meta">👤 เพิ่มโดย ${escapeHtml(addedByName)}${item.date ? ` • ${item.date} ${item.time || ''}` : ''}</span>
+                    ${isManager ? `<span class="stock-meta">👤 เพิ่มโดย ${escapeHtml(addedByName)}${item.date ? ` • ${item.date} ${item.time || ''}` : ''}</span>` : ''}
                 </div>
                 <span class="badge stock-${s.key}">${s.label}</span>
             </div>
             <div class="stock-item-body">
                 <span>คงเหลือ <strong>${Number(item.quantity).toLocaleString('th-TH')}</strong> / ขั้นต่ำ ${Number(item.minQuantity).toLocaleString('th-TH')} ชิ้น</span>
-                <span>แหล่งที่มา: ${escapeHtml(item.source || 'ไม่ระบุ')}</span>
+                ${isManager ? `<span>แหล่งที่มา: ${escapeHtml(item.source || 'ไม่ระบุ')}</span>` : ''}
                 ${s.missing > 0
                     ? `<span class="stock-missing">⚠️ ขาดอีก ${s.missing.toLocaleString('th-TH')} ชิ้น</span>`
                     : '<span class="stock-ok">✔ สต็อกเพียงพอ</span>'}
             </div>
             <div class="stock-item-actions">
-                <button class="btn btn-secondary btn-small stock-adjust" data-id="${item.id}" data-delta="1" type="button">＋ เติมสต็อก</button>
+                ${isManager ? `<button class="btn btn-secondary btn-small stock-adjust" data-id="${item.id}" data-delta="1" type="button">＋ เติมสต็อก</button>` : ''}
                 <button class="btn btn-secondary btn-small stock-adjust" data-id="${item.id}" data-delta="-1" type="button" ${Number(item.quantity) <= 0 ? 'disabled' : ''}>− ใช้/เบิก</button>
-                <button class="btn btn-danger btn-small stock-remove" data-id="${item.id}" type="button">ลบ</button>
+                ${isManager ? `<button class="btn btn-danger btn-small stock-remove" data-id="${item.id}" type="button">ลบ</button>` : ''}
             </div>
         </div>`;
     }).join('');
@@ -690,6 +691,10 @@ async function promptAdjustStock(id, direction) {
                             จำนวนที่เบิก (ชิ้น)
                             <input id="swalAmountInput" type="number" class="swal2-input" style="margin:0;" min="1" step="1" value="1">
                         </label>
+                        <label style="display:grid; gap:4px; font-size:14px;">
+                            ราคาต่อชิ้น (บาท)
+                            <input id="swalPriceInput" type="number" class="swal2-input" style="margin:0;" min="0" step="1" placeholder="ระบุราคาต่อชิ้น" value="0">
+                        </label>
                     </div>`,
                 showCancelButton: true,
                 confirmButtonText: 'เบิกออก',
@@ -699,6 +704,7 @@ async function promptAdjustStock(id, direction) {
                 preConfirm: () => {
                     const requesterVal = document.getElementById('swalRequesterInput')?.value.trim();
                     const amountVal = Math.floor(Number(document.getElementById('swalAmountInput')?.value));
+                    const priceVal = Math.floor(Number(document.getElementById('swalPriceInput')?.value)) || 0;
                     if (!requesterVal) {
                         Swal.showValidationMessage('กรุณากรอกชื่อผู้เบิก');
                         return false;
@@ -707,12 +713,17 @@ async function promptAdjustStock(id, direction) {
                         Swal.showValidationMessage('กรุณาระบุจำนวนมากกว่า 0');
                         return false;
                     }
-                    return { requesterVal, amountVal };
+                    if (priceVal < 0) {
+                        Swal.showValidationMessage('ราคาต้องไม่ติดลบ');
+                        return false;
+                    }
+                    return { requesterVal, amountVal, priceVal };
                 }
             });
             if (!result.isConfirmed) return;
             requester = result.value.requesterVal;
             amount = result.value.amountVal;
+            price = result.value.priceVal;
         } else {
             const nameRaw = prompt('ชื่อผู้เบิกอุปกรณ์:', '');
             if (nameRaw === null) return;
@@ -724,6 +735,9 @@ async function promptAdjustStock(id, direction) {
             const raw = prompt('จำนวนที่เบิก (ชิ้น):', '1');
             if (raw === null) return;
             amount = Math.floor(Number(raw));
+            const priceRaw = prompt('ราคาต่อชิ้น (บาท):', '0');
+            if (priceRaw === null) return;
+            price = Math.floor(Number(priceRaw)) || 0;
         }
     }
 
@@ -748,13 +762,14 @@ async function promptAdjustStock(id, direction) {
                     requester,
                     username: currentUser,
                     quantity: amount,
+                    price,
                     date: now.toLocaleDateString('th-TH'),
                     time: now.toLocaleTimeString('th-TH', { hour12: false })
                 });
                 saveStockWithdrawalsLocal();
             }
         } else {
-            await apiPost('/api/stock', { action: 'adjust', id: item.id, delta, requester, username: currentUser });
+            await apiPost('/api/stock', { action: 'adjust', id: item.id, delta, requester, price, username: currentUser });
             await loadStockData();
             if (!isAdd && canViewMonitoring(currentUser)) await loadStockWithdrawals();
         }
@@ -1232,6 +1247,7 @@ async function initDashboard() {
         renderStockWithdrawals();
     }
     document.getElementById('fundAdminCard')?.classList.toggle('hidden', !isAdmin(currentUser));
+    document.getElementById('stockAddFormWrap')?.classList.toggle('hidden', !canManageStock(currentUser));
 
     // ดึงข้อมูลใหม่ทุก 3 วินาที — คนอื่นเข้าเวร/ฝากเงิน เราจะเห็นอัตโนมัติ
     realtimeInterval = setInterval(async () => {

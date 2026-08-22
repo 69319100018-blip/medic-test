@@ -54,6 +54,7 @@ export default async function handler(req, res) {
                     requester: r.requester,
                     username: r.username,
                     quantity: r.quantity,
+                    price: r.price,
                     date: r.date,
                     time: r.time
                 })));
@@ -85,7 +86,7 @@ export default async function handler(req, res) {
             }
 
             if (action === 'adjust') {
-                const { id, delta, requester, username } = body;
+                const { id, delta, requester, price, username } = body;
                 const deltaValue = Math.floor(Number(delta));
                 if (!id || !Number.isFinite(deltaValue) || deltaValue === 0) {
                     return res.status(400).json({ error: 'ข้อมูลไม่ถูกต้อง' });
@@ -115,10 +116,11 @@ export default async function handler(req, res) {
 
                 if (isWithdraw) {
                     const t = thaiNow();
+                    const itemPrice = price || 0;
                     await sql`
-                        INSERT INTO stock_withdrawals (item_id, item_name, requester, username, quantity, date, time)
+                        INSERT INTO stock_withdrawals (item_id, item_name, requester, username, quantity, price, date, time)
                         VALUES (${id}, ${item.name}, ${trimmedRequester}, ${username || 'ไม่ระบุ'},
-                                ${Math.abs(deltaValue)}, ${t.date}, ${t.time})`;
+                                ${Math.abs(deltaValue)}, ${itemPrice}, ${t.date}, ${t.time})`;
                 }
 
                 return res.status(200).json(mapRow(rows[0]));
