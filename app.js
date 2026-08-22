@@ -118,6 +118,7 @@ async function loadStockWithdrawals() {
         stockWithdrawals = await apiGet(`/api/stock?view=withdrawals&username=${encodeURIComponent(currentUser)}`);
         if (!Array.isArray(stockWithdrawals)) stockWithdrawals = [];
     } catch (err) {
+        console.error('loadStockWithdrawals error:', err);
         try {
             stockWithdrawals = JSON.parse(localStorage.getItem(STOCK_WITHDRAWALS_LOCAL_KEY) || '[]');
         } catch (e) {
@@ -141,7 +142,9 @@ function renderStockWithdrawals() {
         return;
     }
 
-    list.innerHTML = stockWithdrawals.map((w) => `
+    list.innerHTML = stockWithdrawals.map((w) => {
+        const totalPrice = (Number(w.price) || 0) * (Number(w.quantity) || 0);
+        return `
         <div class="fund-history-item">
             <div>
                 <strong>${escapeHtml(w.itemName)}</strong>
@@ -149,10 +152,10 @@ function renderStockWithdrawals() {
             </div>
             <div class="fund-history-meta">
                 <strong>−${Number(w.quantity).toLocaleString('th-TH')} ชิ้น</strong>
-                <span>${w.date} ${w.time}${w.price ? ` • ราคา ${Number(w.price).toLocaleString('th-TH')} บาท/ชิ้น` : ''}</span>
+                <span>${w.date} ${w.time}${w.price ? ` • ${Number(w.price).toLocaleString('th-TH')} บาท/ชิ้น (รวม ${totalPrice.toLocaleString('th-TH')} บาท)` : ''}</span>
             </div>
-        </div>
-    `).join('');
+        </div>`;
+    }).join('');
     staggerChildren(list);
 }
 
@@ -469,6 +472,7 @@ async function handleFundTransaction(type) {
         celebrate({ particleCount: 70, spread: 65, origin: { y: 0.6 }, colors: ['#fbbf24', '#f59e0b', '#22c55e'] });
         showAlert(`${type === 'deposit' ? 'ฝากเงิน' : 'ถอนเงิน'}สำเร็จ`, `จำนวน ${amount.toLocaleString('th-TH')} บาท เรียบร้อย`, 'success');
     } catch (err) {
+        console.error('promptAdjustStock error:', err);
         showAlert('ทำรายการไม่สำเร็จ', err.message || 'ลองใหม่อีกครั้ง', 'error');
     } finally {
         if (btn) btn.disabled = false;
@@ -655,6 +659,7 @@ async function promptAdjustStock(id, direction) {
     const isAdd = direction > 0;
     let amount = 1;
     let requester = '';
+    let price = 0;
 
     if (isAdd) {
         // เติมสต็อก — ถามแค่จำนวนเหมือนเดิม

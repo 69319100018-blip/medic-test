@@ -1,19 +1,11 @@
 // api/stock.js — API กลางสำหรับสต็อกอุปกรณ์ (ทุกคนเห็นรายการเดียวกัน)
 // ทำงานบน Vercel Serverless Function เชื่อม Neon ผ่าน DATABASE_URL
-//
-// หมายเหตุ: ไฟล์นี้ไม่ได้อยู่ในไฟล์ที่อัปโหลดมาด้วย จึงสร้างขึ้นใหม่ให้ตรงกับ
-// การเรียกใช้งานทั้งหมดใน app.js (add / adjust / set_status / remove) บวกของใหม่
-// คือการบันทึก "ผู้เบิก" ทุกครั้งที่เบิกอุปกรณ์ และเมนูดูประวัติการเบิก (เฉพาะแอดมิน/ผอ.)
-// ถ้าของจริงบนเซิร์ฟเวอร์มีโค้ดอื่นอยู่แล้ว ให้เทียบ/รวมกับไฟล์นี้ก่อนวางทับ
 import { neon } from '@neondatabase/serverless';
 
 const sql = neon(process.env.DATABASE_URL);
-
-// เฉพาะแอดมิน/ผอ. เท่านั้นที่จัดการสต็อกได้ (ไม่ใช่รองผอ.)
-const ADMIN_USERS = ['talos blackagency'];
 const TZ = 'Asia/Bangkok';
 
-// เฉพาะแอดมิน/ผอ. เท่านั้นที่ดูประวัติการเบิกได้ (ให้ตรงกับ ADMIN_USERS ใน fund.js)
+// เฉพาะแอดมิน/ผอ. เท่านั้นที่จัดการสต็อกได้ (ไม่ใช่รองผอ.)
 const ADMIN_USERS = ['talos blackagency'];
 
 function thaiNow() {
@@ -40,7 +32,7 @@ function mapRow(r) {
 
 export default async function handler(req, res) {
     try {
-        // GET /api/stock            — รายการสต็อกทั้งหมด (รูปแบบเดิม)
+        // GET /api/stock            — รายการสต็อกทั้งหมด
         // GET /api/stock?view=withdrawals&username=xxx — ประวัติการเบิก (เฉพาะแอดมิน/ผอ.)
         if (req.method === 'GET') {
             if (req.query?.view === 'withdrawals') {
@@ -49,7 +41,7 @@ export default async function handler(req, res) {
                     return res.status(403).json({ error: 'เฉพาะแอดมินหรือ ผอ. เท่านั้นที่ดูประวัติการเบิกได้' });
                 }
                 const rows = await sql`
-                    SELECT item_id, item_name, requester, username, quantity, date, time
+                    SELECT item_id, item_name, requester, username, quantity, price, date, time
                     FROM stock_withdrawals ORDER BY id DESC LIMIT 200`;
                 return res.status(200).json(rows.map((r) => ({
                     itemId: r.item_id,
@@ -57,7 +49,7 @@ export default async function handler(req, res) {
                     requester: r.requester,
                     username: r.username,
                     quantity: r.quantity,
-                    price: r.price,
+                    price: r.price || 0,
                     date: r.date,
                     time: r.time
                 })));
@@ -122,7 +114,7 @@ export default async function handler(req, res) {
 
                 if (isWithdraw) {
                     const t = thaiNow();
-                    const itemPrice = price || 0;
+                    const itemPrice = Math.max(0, Math.floor(Number(price) || 0));
                     await sql`
                         INSERT INTO stock_withdrawals (item_id, item_name, requester, username, quantity, price, date, time)
                         VALUES (${id}, ${item.name}, ${trimmedRequester}, ${username || 'ไม่ระบุ'},
@@ -162,7 +154,7 @@ export default async function handler(req, res) {
         res.setHeader('Allow', 'GET, POST');
         return res.status(405).end();
     } catch (err) {
-        console.error(err);
+        console.error('STOCK API ERROR:', err);
         return res.status(500).json({ error: 'เซิร์ฟเวอร์มีปัญหา: ' + err.message });
     }
 }
