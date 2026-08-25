@@ -174,12 +174,8 @@ function refreshShiftViews() {
 }
 
 const loginBackgroundImages = [
-    'IMG_4433.jpg',
-    'talos.jpg',
-    'noeele.jpg',
-    'yuri.png',
-    'jas.png',
-    'zenzey.png'
+    '123.jpg',
+    
 ];
 
 function formatElapsed(seconds) {
