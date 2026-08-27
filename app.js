@@ -173,11 +173,17 @@ function refreshShiftViews() {
     updateActionButtons();
 }
 
+<<<<<<< HEAD
 /* ---------- Login video background + mouse focus ---------- */
 const loginVideoPlaylist = [
     'assets/bg1-h264.mp4',
     'assets/bg3-h264.mp4',
     'assets/bg2.mp4'  // ยังเป็น HEVC — เบราว์เซอร์ที่รองรับจะเล่นได้
+=======
+const loginBackgroundImages = [
+    '123.jpg',
+    
+>>>>>>> c4c3f3f13f5f380a601c288910918923cbbf1eb8
 ];
 
 function formatElapsed(seconds) {
@@ -207,6 +213,45 @@ function getOpenCheckIn(username) {
     return getTodayLogs(username).slice().reverse().find((log) => log.type === 'เข้าเวร' && !log.duration);
 }
 
+<<<<<<< HEAD
+=======
+let activeLoginBackgrounds = [];
+
+function setLoginBackground(index) {
+    const element = document.getElementById('loginBackground');
+    if (!element || !activeLoginBackgrounds.length) return;
+    element.classList.remove('visible');
+    setTimeout(() => {
+        element.style.backgroundImage = `linear-gradient(180deg, rgba(7,20,46,0.46), rgba(7,20,46,0.30)), url(${activeLoginBackgrounds[index]})`;
+        element.classList.add('visible');
+        document.body.classList.add('has-bg');
+    }, 120);
+}
+
+function cycleLoginBackground() {
+    if (loginBgInterval) clearInterval(loginBgInterval);
+    const element = document.getElementById('loginBackground');
+    if (!element) return;
+    // โหลดเฉพาะรูปที่มีอยู่จริง กันพื้นหลังเสียตอนสไลด์
+    let pending = loginBackgroundImages.length;
+    activeLoginBackgrounds = [];
+    loginBackgroundImages.forEach((src) => {
+        const probe = new Image();
+        probe.onload = () => { activeLoginBackgrounds.push(src); if (--pending === 0) startCycle(); };
+        probe.onerror = () => { if (--pending === 0) startCycle(); };
+        probe.src = src;
+    });
+    function startCycle() {
+        if (!activeLoginBackgrounds.length) return;
+        loginBgIndex = 0;
+        setLoginBackground(loginBgIndex);
+        loginBgInterval = setInterval(() => {
+            loginBgIndex = (loginBgIndex + 1) % activeLoginBackgrounds.length;
+            setLoginBackground(loginBgIndex);
+        }, 3500);
+    }
+}
+>>>>>>> c4c3f3f13f5f380a601c288910918923cbbf1eb8
 
 function renderHistoryControls() {
     const historySection = document.getElementById('historySection');
@@ -953,11 +998,14 @@ function renderProfile() {
     const statusLabel = document.getElementById('userStatus');
     const currentCheckIn = getOpenCheckIn(currentUser);
     statusLabel.textContent = currentCheckIn ? 'อยู่ในเวร' : 'ยังไม่เข้าเวร';
+<<<<<<< HEAD
     statusLabel.style.color = currentCheckIn ? '#16a34a' : '';
     const statusDot = document.getElementById('avatarStatusDot');
     if (statusDot) {
         statusDot.classList.toggle('on-duty', !!currentCheckIn);
     }
+=======
+>>>>>>> c4c3f3f13f5f380a601c288910918923cbbf1eb8
 }
 
 function renderLog() {
@@ -1294,7 +1342,11 @@ function handleLogin(e) {
         }, 900);
         return;
     }
+<<<<<<< HEAD
     const page = document.getElementById('loginPage') || document.querySelector('.login-page');
+=======
+    const page = document.querySelector('.page-login');
+>>>>>>> c4c3f3f13f5f380a601c288910918923cbbf1eb8
     page?.classList.add('shake');
     setTimeout(() => page?.classList.remove('shake'), 500);
     [usernameInput, passwordInput].forEach((input) => {
@@ -1309,10 +1361,15 @@ function initPage() {
     const loginForm = document.getElementById('loginForm');
     if (loginForm) {
         loginForm.addEventListener('submit', handleLogin);
+<<<<<<< HEAD
         initLoginVideo();
         initLoginFocus();
         const yearEl = document.getElementById('year');
         if (yearEl) yearEl.textContent = new Date().getFullYear();
+=======
+        cycleLoginBackground();
+        initTilt();
+>>>>>>> c4c3f3f13f5f380a601c288910918923cbbf1eb8
         return;
     }
     if (document.querySelector('.page-dashboard')) {
@@ -1378,6 +1435,7 @@ function playSectionEnter(element) {
     element.addEventListener('animationend', () => element.classList.remove('section-enter'), { once: true });
 }
 
+<<<<<<< HEAD
 /* ---------- Login: video playlist + mouse-proximity focus ---------- */
 function initLoginVideo() {
     const playlist = loginVideoPlaylist;
@@ -1573,6 +1631,22 @@ function initLoginFocus() {
 
 function initTilt() {
     // kept as no-op for compatibility; focus effect replaces tilt
+=======
+// การ์ดล็อกอินเอียง 3D ตามเมาส์
+function initTilt() {
+    const card = document.querySelector('.page-login .card-form');
+    const wrap = document.querySelector('.page-login .hero-card');
+    if (!card || !wrap) return;
+    wrap.addEventListener('mousemove', (e) => {
+        const rect = card.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / rect.width - 0.5;
+        const y = (e.clientY - rect.top) / rect.height - 0.5;
+        card.style.transform = `perspective(950px) rotateY(${x * 6}deg) rotateX(${-y * 6}deg)`;
+    });
+    wrap.addEventListener('mouseleave', () => {
+        card.style.transform = '';
+    });
+>>>>>>> c4c3f3f13f5f380a601c288910918923cbbf1eb8
 }
 
 // อนิเมชันเข้าครั้งแรกของหน้าแดชบอร์ด

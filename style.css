@@ -1740,6 +1740,7 @@ body.has-bg .card-form {
     .fund-bar-track {
         background: rgba(148, 163, 184, 0.22);
     }
+<<<<<<< HEAD
 }
 /* ============================================================
    LOGIN PAGE — Video BG + Glass Card + Mouse Focus (STOCKPRO style)
@@ -2821,3 +2822,6 @@ body.has-bg .card-form {
         grid-template-columns: 1fr 1fr;
     }
 }
+=======
+}
+>>>>>>> c4c3f3f13f5f380a601c288910918923cbbf1eb8

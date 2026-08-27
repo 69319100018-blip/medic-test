@@ -6,9 +6,21 @@
     <title>Medic Shift Dashboard</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<<<<<<< HEAD
     <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
     <link rel="stylesheet" href="style.css">
+=======
+    <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;500;600;700;800&family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+<base target="_blank">
+
+<base target="_blank">
+ 
+
+<base target="_blank">
+<base target="_blank">
+>>>>>>> c4c3f3f13f5f380a601c288910918923cbbf1eb8
 </head>
 <body>
     <div class="bg-blob blob-1"></div>
@@ -17,24 +29,37 @@
     <div class="page page-dashboard">
         <header class="topbar">
             <div class="brand">
+<<<<<<< HEAD
                 <img class="brand-logo" src="talos.jpg" alt="Logo" id="brandAvatar">
                 <div class="brand-text">
+=======
+                <img class="brand-logo" src="talos.jpg" alt="Talos">
+                <div>
+>>>>>>> c4c3f3f13f5f380a601c288910918923cbbf1eb8
                     <strong>Medic Shift Log</strong>
                     <small>ระบบตรวจสอบเข้า-ออกเวร</small>
                 </div>
             </div>
             <div class="topbar-actions">
                 <div class="time-label">
+<<<<<<< HEAD
                     <span><i class="bi bi-clock"></i> เวลา</span>
                     <strong id="currentTime">00:00:00</strong>
                 </div>
                 <button id="btnLogout" class="btn btn-secondary btn-logout">
                     <i class="bi bi-box-arrow-right"></i> ออกจากระบบ
                 </button>
+=======
+                    <span>เวลา</span>
+                    <strong id="currentTime">00:00:00</strong>
+                </div>
+                <button id="btnLogout" class="btn btn-secondary">ออกจากระบบ</button>
+>>>>>>> c4c3f3f13f5f380a601c288910918923cbbf1eb8
             </div>
         </header>
 
         <nav class="dashboard-nav">
+<<<<<<< HEAD
             <button class="nav-link active" data-target="overviewSection">
                 <i class="bi bi-grid-1x2"></i> ภาพรวม
             </button>
@@ -56,15 +81,28 @@
             <button class="nav-link" data-target="adminSection">
                 <i class="bi bi-shield-check"></i> ตรวจสอบ
             </button>
+=======
+            <button class="nav-link active" data-target="overviewSection">ภาพรวม</button>
+            <button class="nav-link" data-target="fundsSection">เงินกองกลาง</button>
+            <button class="nav-link" data-target="stockSection">📦 สต็อกอุปกรณ์</button>
+            <button class="nav-link" data-target="vehicleSection">🚗 ทะเบียนรถ</button>
+            <button class="nav-link" data-target="historySection">ประวัติ</button>
+            <button class="nav-link" data-target="stockHistorySection">📋 ประวัติการเบิก</button>
+            <button class="nav-link" data-target="adminSection">ตรวจสอบ</button>
+>>>>>>> c4c3f3f13f5f380a601c288910918923cbbf1eb8
         </nav>
 
         <main class="dashboard-grid">
             <section class="panel panel-profile" id="overviewSection">
                 <div class="profile-header">
+<<<<<<< HEAD
                     <div class="avatar-wrap">
                         <img id="userAvatar" class="avatar" src="" alt="Avatar">
                         <span class="avatar-status" id="avatarStatusDot"></span>
                     </div>
+=======
+                    <img id="userAvatar" class="avatar" src="" alt="Avatar">
+>>>>>>> c4c3f3f13f5f380a601c288910918923cbbf1eb8
                     <div>
                         <p class="label">ผู้ใช้งาน</p>
                         <h2 id="profileName"></h2>
@@ -76,6 +114,7 @@
                     <strong id="userStatus">ยังไม่เข้าเวร</strong>
                 </div>
                 <div class="action-grid">
+<<<<<<< HEAD
                     <button id="btnCheckIn" class="btn btn-success">
                         <i class="bi bi-check-circle-fill"></i> เข้าเวร
                     </button>
@@ -90,6 +129,14 @@
                     <button id="btnRules" class="btn btn-tertiary">
                         <i class="bi bi-journal-text"></i> เว็บกฎ
                     </button>
+=======
+                    <button id="btnCheckIn" class="btn btn-success">✅ เข้าเวร</button>
+                    <button id="btnCheckOut" class="btn btn-danger" disabled>🚪 ออกเวร</button>
+                </div>
+                <div class="quick-links">
+                    <button id="btnManual" class="btn btn-tertiary">📝 กรอกเวลา</button>
+                    <button id="btnRules" class="btn btn-tertiary">📜 เว็บกฎ</button>
+>>>>>>> c4c3f3f13f5f380a601c288910918923cbbf1eb8
                 </div>
             </section>
 
@@ -299,4 +346,8 @@
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
     <script src="app.js"></script>
 </body>
+<<<<<<< HEAD
 </html>
+=======
+</html>
+>>>>>>> c4c3f3f13f5f380a601c288910918923cbbf1eb8
