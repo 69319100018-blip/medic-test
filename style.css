@@ -452,6 +452,7 @@ label {
 #fundsSection,
 #stockSection,
 #vehicleSection,
+#doctorsSection,
 #historySection,
 #stockHistorySection {
     grid-column: 1 / -1;
@@ -1536,6 +1537,7 @@ body.has-bg .card-form {
     grid-template-columns: 1.1fr 0.9fr;
     gap: 18px;
     margin-bottom: 22px;
+    align-items: start; /* ฟอร์มไม่ถูกยืดตามความสูงของรายการ */
 }
 
 .stock-stats {
@@ -1589,6 +1591,33 @@ body.has-bg .card-form {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 14px;
+}
+
+/* ฝั่งรายการโชว์ประมาณ 4 ชิ้น (2 แถว) แล้วเลื่อนดูเพิ่ม — กันฟอร์มถูกยืด */
+.stock-overview-card .stock-list,
+#doctorsList,
+#vehicleMyList,
+#vehicleAllList {
+    max-height: 340px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-right: 6px;
+    align-content: start;
+}
+
+.stock-overview-card .stock-list::-webkit-scrollbar,
+#doctorsList::-webkit-scrollbar,
+#vehicleMyList::-webkit-scrollbar,
+#vehicleAllList::-webkit-scrollbar {
+    width: 6px;
+}
+
+.stock-overview-card .stock-list::-webkit-scrollbar-thumb,
+#doctorsList::-webkit-scrollbar-thumb,
+#vehicleMyList::-webkit-scrollbar-thumb,
+#vehicleAllList::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.45);
+    border-radius: 8px;
 }
 
 .stock-item {

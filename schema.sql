@@ -98,3 +98,19 @@ CREATE INDEX IF NOT EXISTS idx_fund_history_id_desc ON fund_history (id DESC);
 CREATE INDEX IF NOT EXISTS idx_stock_withdrawals_id_desc ON stock_withdrawals (id DESC);
 CREATE INDEX IF NOT EXISTS idx_vehicles_username ON vehicles (username);
 CREATE INDEX IF NOT EXISTS idx_vehicles_id_desc ON vehicles (id DESC);
+
+-- ============================================================
+-- ตารางรายชื่อแพทย์ (ทุกคนดูได้ แอดมิน/ผอ. เพิ่ม-ลบได้)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS doctors (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    role TEXT DEFAULT '',
+    note TEXT DEFAULT '',
+    added_by TEXT DEFAULT '',
+    date TEXT DEFAULT '',
+    time TEXT DEFAULT '',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_doctors_id_desc ON doctors (id DESC);

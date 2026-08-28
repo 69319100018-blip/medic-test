@@ -48,6 +48,9 @@
             <button class="nav-link" data-target="vehicleSection">
                 <i class="bi bi-car-front"></i> ทะเบียนรถ
             </button>
+            <button class="nav-link" data-target="doctorsSection">
+                <i class="bi bi-people"></i> รายชื่อแพทย์
+            </button>
             <button class="nav-link" data-target="historySection">
                 <i class="bi bi-clock-history"></i> ประวัติ
             </button>
@@ -280,6 +283,41 @@
                 <div class="stock-list-wrap hidden" id="vehicleAdminWrap">
                     <h3 class="stock-list-title">🔍 ทะเบียนรถของแพทย์ทุกคน (สำหรับแอดมิน/ผอ.)</h3>
                     <div id="vehicleAllList" class="stock-list"></div>
+                </div>
+            </section>
+
+            <section class="panel panel-doctors hidden" id="doctorsSection">
+                <div class="panel-header">
+                    <div>
+                        <p class="label">รายชื่อแพทย์</p>
+                        <h2>รายชื่อแพทย์ทั้งหมด</h2>
+                    </div>
+                    <span id="doctorsSummaryPill" class="date-pill">ทั้งหมด 0 คน</span>
+                </div>
+                <div class="stock-layout">
+                    <div class="fund-card hidden" id="doctorsAddFormWrap">
+                        <h3>➕ เพิ่มรายชื่อแพทย์</h3>
+                        <label>
+                            ชื่อ-นามสกุล
+                            <input id="doctorNameInput" type="text" placeholder="เช่น นพ.สมชาย ใจดี">
+                        </label>
+                        <label>
+                            ตำแหน่ง / สาขา
+                            <input id="doctorRoleInput" type="text" placeholder="เช่น แพทย์เวชศาสตร์ฉุกเฉิน, พยาบาล">
+                        </label>
+                        <label>
+                            หมายเหตุ (ถ้ามี)
+                            <input id="doctorNoteInput" type="text" placeholder="เช่น เวรเช้า, เบอร์ติดต่อ">
+                        </label>
+                        <div class="fund-actions">
+                            <button id="btnAddDoctor" class="btn btn-success" type="button">👤 เพิ่มรายชื่อ</button>
+                        </div>
+                        <p class="help-text">เฉพาะแอดมินและผู้อำนวยการเท่านั้นที่เพิ่ม/ลบได้ • ผู้เพิ่ม: <strong id="doctorAddedByLabel">-</strong></p>
+                    </div>
+                    <div class="fund-card stock-overview-card">
+                        <h3>รายชื่อทั้งหมด (ทุกคนเห็นเหมือนกัน)</h3>
+                        <div id="doctorsList" class="stock-list"></div>
+                    </div>
                 </div>
             </section>
 

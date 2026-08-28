@@ -9,7 +9,7 @@
 1. เข้า https://console.neon.tech แล้วเลือกโปรเจกต์ของคุณ
 2. ไปที่เมนู **SQL Editor**
 3. เปิดไฟล์ `schema.sql` ในโฟลเดอร์นี้ ก๊อปปี้ทั้งหมดไปวาง แล้วกด **Run**
-4. จะได้ตาราง 3 ตัว: `shift_events` (บันทึกเวร), `fund_state` (ยอดเงินกองกลาง), `fund_history` (ประวัติฝาก/ถอน)
+4. จะได้ตาราง: `shift_events`, `fund_state`, `fund_history`, `stock_items`, `stock_withdrawals`, `vehicles`, และ `doctors` (รายชื่อแพทย์)
 
 ## ขั้นที่ 2: เอา Connection String ไปใส่ใน Vercel (3 นาที)
 
@@ -41,8 +41,11 @@ medic-shift-log-db/
 ├── package.json        ← ใหม่
 ├── schema.sql          ← ใหม่ (ไฟล์สร้างตาราง ไม่ต้องอัปขึ้นเว็บก็ได้)
 ├── api/
-│   ├── shift.js        ← ใหม่ (API ระบบเวร)
-│   └── fund.js         ← ใหม่ (API เงินกองกลาง)
+│   ├── shift.js        ← API ระบบเวร
+│   ├── fund.js         ← API เงินกองกลาง
+│   ├── stock.js        ← API สต็อก
+│   ├── vehicle.js      ← API ทะเบียนรถ
+│   └── doctors.js      ← API รายชื่อแพทย์ (ทุกคนดูได้ แอดมิน/ผอ. เพิ่ม-ลบ)
 └── (รูปภาพต่างๆ เดิม)
 ```
 

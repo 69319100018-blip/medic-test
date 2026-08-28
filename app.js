@@ -28,9 +28,12 @@ let stockOffline = false;
 let stockWithdrawals = [];
 let vehicles = [];
 let vehicleOffline = false;
+let doctors = [];
+let doctorsOffline = false;
 const STOCK_LOCAL_KEY = 'medicStockItems';
 const STOCK_WITHDRAWALS_LOCAL_KEY = 'medicStockWithdrawals';
 const VEHICLE_LOCAL_KEY = 'medicVehicles';
+const DOCTORS_LOCAL_KEY = 'medicDoctors';
 
 function getDefaultFundState() {
     return {
@@ -109,6 +112,25 @@ async function loadVehicleData() {
 
 function saveVehicleLocal() {
     localStorage.setItem(VEHICLE_LOCAL_KEY, JSON.stringify(vehicles));
+}
+
+async function loadDoctorsData() {
+    try {
+        const data = await apiGet('/api/doctors');
+        doctors = Array.isArray(data) ? data : [];
+        doctorsOffline = false;
+    } catch (err) {
+        doctorsOffline = true;
+        try {
+            doctors = JSON.parse(localStorage.getItem(DOCTORS_LOCAL_KEY) || '[]');
+        } catch (e) {
+            doctors = [];
+        }
+    }
+}
+
+function saveDoctorsLocal() {
+    localStorage.setItem(DOCTORS_LOCAL_KEY, JSON.stringify(doctors));
 }
 
 // ประวัติการเบิกอุปกรณ์ — เฉพาะแอดมิน/ผอ. เท่านั้นที่โหลด/เห็นได้
@@ -276,6 +298,11 @@ function canManageStock(username) {
     if (profile.isAdmin) return true;
     const role = (profile.role || '').toLowerCase();
     return role.includes('ผู้อำนวยการ') && !role.includes('รอง');
+}
+
+function canManageDoctors(username) {
+    // เฉพาะแอดมิน และ ผอ. (ไม่ใช่รอง) เท่านั้นที่เพิ่ม/ลบรายชื่อแพทย์ได้
+    return canManageStock(username);
 }
 
 const Toast = window.Swal ? Swal.mixin({
@@ -943,6 +970,137 @@ async function confirmRemoveVehicle(id) {
     }
 }
 
+// ============================================================
+// DOCTORS — รายชื่อแพทย์ (ทุกคนเห็นเหมือนกัน, แอดมิน/ผอ. เพิ่ม-ลบได้)
+// ============================================================
+function doctorItemHtml(d) {
+    const canRemove = canManageDoctors(currentUser);
+    const addedByName = userProfiles[d.addedBy]?.name || d.addedBy || 'ไม่ระบุ';
+    return `
+        <div class="stock-item">
+            <div class="stock-item-head">
+                <div>
+                    <strong>${escapeHtml(d.name)}</strong>
+                    <span class="stock-meta">${escapeHtml(d.role || 'ไม่ระบุตำแหน่ง')}${d.note ? ` • ${escapeHtml(d.note)}` : ''}${d.date ? ` • เพิ่มเมื่อ ${d.date} ${d.time || ''}` : ''} • โดย ${escapeHtml(addedByName)}</span>
+                </div>
+            </div>
+            ${canRemove ? `
+            <div class="stock-item-actions">
+                <button class="btn btn-danger btn-small doctor-remove" data-id="${d.id}" type="button">ลบ</button>
+            </div>` : ''}
+        </div>`;
+}
+
+function renderDoctors() {
+    const addedByLabel = document.getElementById('doctorAddedByLabel');
+    if (addedByLabel) addedByLabel.textContent = userProfiles[currentUser]?.name || currentUser || '-';
+
+    const summaryPill = document.getElementById('doctorsSummaryPill');
+    if (summaryPill) summaryPill.textContent = `ทั้งหมด ${doctors.length} คน`;
+
+    const formWrap = document.getElementById('doctorsAddFormWrap');
+    if (formWrap) formWrap.classList.toggle('hidden', !canManageDoctors(currentUser));
+
+    const list = document.getElementById('doctorsList');
+    if (list) {
+        list.innerHTML = doctors.length
+            ? doctors.map((d) => doctorItemHtml(d)).join('')
+            : '<div class="log-item"><strong>ยังไม่มีรายชื่อแพทย์</strong><span>แอดมินหรือผู้อำนวยการสามารถเพิ่มรายชื่อได้จากฟอร์มด้านบน</span></div>';
+        list.querySelectorAll('.doctor-remove').forEach((btn) => {
+            btn.addEventListener('click', () => confirmRemoveDoctor(btn.dataset.id));
+        });
+        staggerChildren(list);
+    }
+}
+
+async function handleAddDoctor() {
+    if (!canManageDoctors(currentUser)) {
+        showAlert('ไม่มีสิทธิ์', 'เฉพาะแอดมินและผู้อำนวยการเท่านั้นที่เพิ่มรายชื่อแพทย์ได้', 'warning');
+        return;
+    }
+    const nameInput = document.getElementById('doctorNameInput');
+    const roleInput = document.getElementById('doctorRoleInput');
+    const noteInput = document.getElementById('doctorNoteInput');
+    const name = nameInput?.value.trim();
+    const role = roleInput?.value.trim() || '';
+    const note = noteInput?.value.trim() || '';
+    if (!name) {
+        showAlert('ข้อมูลไม่ครบ', 'กรุณากรอกชื่อแพทย์', 'warning');
+        nameInput?.classList.add('input-error');
+        setTimeout(() => nameInput?.classList.remove('input-error'), 700);
+        return;
+    }
+
+    const btn = document.getElementById('btnAddDoctor');
+    if (btn) btn.disabled = true;
+    try {
+        if (doctorsOffline) {
+            const now = new Date();
+            doctors.unshift({
+                id: Date.now(),
+                name,
+                role,
+                note,
+                addedBy: currentUser,
+                date: now.toLocaleDateString('th-TH'),
+                time: now.toLocaleTimeString('th-TH', { hour12: false })
+            });
+            saveDoctorsLocal();
+        } else {
+            await apiPost('/api/doctors', { action: 'add', username: currentUser, name, role, note });
+            await loadDoctorsData();
+        }
+        renderDoctors();
+        if (nameInput) nameInput.value = '';
+        if (roleInput) roleInput.value = '';
+        if (noteInput) noteInput.value = '';
+        celebrate({ particleCount: 70, spread: 65, origin: { y: 0.6 }, colors: ['#2563eb', '#16a34a', '#a78bfa'] });
+        showAlert('เพิ่มรายชื่อสำเร็จ', name, 'success');
+    } catch (err) {
+        showAlert('เพิ่มรายชื่อไม่สำเร็จ', err.message || 'ลองใหม่อีกครั้ง', 'error');
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
+async function confirmRemoveDoctor(id) {
+    if (!canManageDoctors(currentUser)) {
+        showAlert('ไม่มีสิทธิ์', 'เฉพาะแอดมินและผู้อำนวยการเท่านั้นที่ลบรายชื่อแพทย์ได้', 'warning');
+        return;
+    }
+    const item = doctors.find((d) => String(d.id) === String(id));
+    if (!item) return;
+    let confirmed = true;
+    if (window.Swal) {
+        const result = await Swal.fire({
+            title: 'ลบรายชื่อนี้?',
+            text: `"${item.name}" จะถูกลบออกจากรายชื่อแพทย์`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'ลบรายชื่อ',
+            cancelButtonText: 'ยกเลิก',
+            confirmButtonColor: '#dc2626'
+        });
+        confirmed = result.isConfirmed;
+    } else {
+        confirmed = confirm(`ลบ "${item.name}" ออกจากรายชื่อแพทย์?`);
+    }
+    if (!confirmed) return;
+    try {
+        if (doctorsOffline) {
+            doctors = doctors.filter((d) => String(d.id) !== String(id));
+            saveDoctorsLocal();
+        } else {
+            await apiPost('/api/doctors', { action: 'remove', id: item.id, username: currentUser });
+            await loadDoctorsData();
+        }
+        renderDoctors();
+        showAlert('ลบรายชื่อแล้ว', `${item.name} ถูกลบออกจากรายชื่อแพทย์`, 'success');
+    } catch (err) {
+        showAlert('ลบไม่สำเร็จ', err.message || 'ลองใหม่อีกครั้ง', 'error');
+    }
+}
+
 function renderProfile() {
     const profile = userProfiles[currentUser];
     if (!profile) return;
@@ -1171,6 +1329,7 @@ function bindDashboardEvents() {
     document.getElementById('btnFundAddReserve')?.addEventListener('click', () => handleFundAdminAdd('reserve'));
     document.getElementById('btnAddStock')?.addEventListener('click', handleAddStock);
     document.getElementById('btnAddVehicle')?.addEventListener('click', handleAddVehicle);
+    document.getElementById('btnAddDoctor')?.addEventListener('click', handleAddDoctor);
     document.getElementById('btnLogout')?.addEventListener('click', () => {
         sessionStorage.removeItem('loggedInUser');
         window.location.href = 'index.html';
@@ -1196,6 +1355,7 @@ async function initDashboard() {
     }
     await loadStockData();
     await loadVehicleData();
+    await loadDoctorsData();
 
     renderProfile();
     renderHistoryControls();
@@ -1205,6 +1365,7 @@ async function initDashboard() {
     renderCentralFund();
     renderStock();
     renderVehicles();
+    renderDoctors();
     updateActionButtons();
     if (!canViewMonitoring(currentUser)) {
         document.getElementById('adminSection')?.classList.add('hidden');
@@ -1220,6 +1381,7 @@ async function initDashboard() {
     }
     document.getElementById('fundAdminCard')?.classList.toggle('hidden', !isAdmin(currentUser));
     document.getElementById('stockAddFormWrap')?.classList.toggle('hidden', !canManageStock(currentUser));
+    document.getElementById('doctorsAddFormWrap')?.classList.toggle('hidden', !canManageDoctors(currentUser));
 
     // ดึงข้อมูลใหม่ทุก 3 วินาที — คนอื่นเข้าเวร/ฝากเงิน เราจะเห็นอัตโนมัติ
     realtimeInterval = setInterval(async () => {
@@ -1267,6 +1429,18 @@ async function initDashboard() {
                 if (JSON.stringify(updatedVehicles) !== JSON.stringify(vehicles)) {
                     vehicles = Array.isArray(updatedVehicles) ? updatedVehicles : [];
                     renderVehicles();
+                }
+            } catch (err) {
+                // ข้ามไปรอรอบถัดไป
+            }
+        }
+        // อัปเดตรายชื่อแพทย์แบบเรียลไทม์
+        if (!doctorsOffline) {
+            try {
+                const updatedDoctors = await apiGet('/api/doctors');
+                if (JSON.stringify(updatedDoctors) !== JSON.stringify(doctors)) {
+                    doctors = Array.isArray(updatedDoctors) ? updatedDoctors : [];
+                    renderDoctors();
                 }
             } catch (err) {
                 // ข้ามไปรอรอบถัดไป
