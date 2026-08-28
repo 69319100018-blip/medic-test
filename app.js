@@ -1,11 +1,13 @@
 const users = {
     "talos blackagency": "001",
     "noelle blackagency": "002",
+    "jane doe": "003"
 };
 
 const userProfiles = {
     "talos blackagency": { name: "Talos Blackagency", role: "ผู้อำนวยการแพทย์", avatar: "talos.jpg", isAdmin: true, canViewMonitoring: true, desc: "ควบคุมและตรวจสอบทีมเวร" },
-    "noelle blackagency": { name: "Noelle Blackagency", role: "รอง.ผู้อำนวยการ", avatar: "noeele.jpg", isAdmin: false, canViewMonitoring: false, desc: "สนับสนุนงานประสานงาน" }
+    "noelle blackagency": { name: "Noelle Blackagency", role: "รอง.ผู้อำนวยการ", avatar: "noeele.jpg", isAdmin: false, canViewMonitoring: false, desc: "สนับสนุนงานประสานงาน" },
+    "jane doe": { name: "Jane Doe", role: "พยาบาล", avatar: "jane.jpg", isAdmin: false, canViewMonitoring: false, desc: "ดูแลผู้ป่วย" }
 };
 
 const manualUrl = "https://docs.google.com/spreadsheets/d/1vGjzD5YZiiBs65yBodjtxsoUPQVr_EMMnfqRXWbOZrI/edit?gid=749978115#gid=749978115";
