@@ -1598,3 +1598,606 @@ document.addEventListener('click', (event) => {
     target.appendChild(ripple);
     setTimeout(() => ripple.remove(), 680);
 });
+/* ============================================================
+   MUSIC PLAYER — เล่นไฟล์/โฟลเดอร์เพลงจากเครื่อง
+   ============================================================ */
+(function initMusicPlayer() {
+    var player = document.getElementById('musicPlayer');
+    if (!player) return;
+
+    var audio = document.getElementById('musicAudio');
+    var titleEl = document.getElementById('musicTitle');
+    var subEl = document.getElementById('musicSubtitle');
+    var artEl = document.getElementById('musicArt');
+    var playBtn = document.getElementById('musicPlay');
+    var playIcon = document.getElementById('musicPlayIcon');
+    var prevBtn = document.getElementById('musicPrev');
+    var nextBtn = document.getElementById('musicNext');
+    var seek = document.getElementById('musicSeek');
+    var curTime = document.getElementById('musicCurrent');
+    var durTime = document.getElementById('musicDuration');
+    var vol = document.getElementById('musicVolume');
+    var volIcon = document.getElementById('musicVolIcon');
+    var fileInput = document.getElementById('musicFileInput');
+    var folderInput = document.getElementById('musicFolderInput');
+    var pickFilesBtn = document.getElementById('musicPickFiles');
+    var pickFolderBtn = document.getElementById('musicPickFolder');
+    var playlistBtn = document.getElementById('musicPlaylistBtn');
+    var playlistPanel = document.getElementById('musicPlaylistPanel');
+    var playlistEl = document.getElementById('musicPlaylist');
+    var playlistEmpty = document.getElementById('musicPlaylistEmpty');
+    var playlistClose = document.getElementById('musicPlaylistClose');
+    var shuffleBtn = document.getElementById('musicShuffleBtn');
+
+    var tracks = []; // { name, url, file }
+    var index = -1;
+    var seeking = false;
+    // โหมดเล่น: order | repeat-all | repeat-one | shuffle
+    var playMode = 'order';
+    var PLAY_MODES = ['order', 'repeat-all', 'repeat-one', 'shuffle'];
+    var PLAY_MODE_META = {
+        order:       { icon: 'bi-arrow-right',   title: 'เล่นตามลำดับ',     active: false },
+        'repeat-all':{ icon: 'bi-repeat',        title: 'วนทั้งเพลย์ลิสต์',  active: true  },
+        'repeat-one':{ icon: 'bi-repeat-1',      title: 'วนเพลงเดียว',      active: true  },
+        shuffle:     { icon: 'bi-shuffle',       title: 'สุ่มเพลง',         active: true  }
+    };
+    var collapsed = false;
+
+    var AUDIO_EXT = /\.(mp3|wav|ogg|m4a|aac|flac|webm|opus)$/i;
+
+    // —— Drag + Collapse ——
+    var dragHandle = document.getElementById('musicDragHandle');
+    var collapseBtn = document.getElementById('musicCollapseBtn');
+    var collapseIcon = document.getElementById('musicCollapseIcon');
+    var STORAGE_KEY = 'musicPlayerPos';
+
+    // state สำหรับ parallax (rotateX/Y) — ใช้ร่วมกับ drag scale/tilt
+    var paraRX = 0, paraRY = 0;
+    var PARA_MAX = 7; // องศาสูงสุด
+    var dragging = false;
+
+    function applyPosition(left, top, scale, tilt) {
+        if (left == null || top == null) return;
+        player.style.left = left + 'px';
+        player.style.top = top + 'px';
+        player.style.bottom = 'auto';
+        player.style.right = 'auto';
+        var s = scale != null ? scale : 1;
+        var r = tilt != null ? tilt : 0;
+        player.style.transformOrigin = '50% 50%';
+        // รวม drag scale/tilt + parallax 3D
+        var parts = [];
+        if (s !== 1) parts.push('scale(' + s + ')');
+        if (r !== 0) parts.push('rotate(' + r + 'deg)');
+        if (paraRX !== 0 || paraRY !== 0) {
+            parts.push('perspective(900px) rotateX(' + paraRX + 'deg) rotateY(' + paraRY + 'deg)');
+        }
+        player.style.transform = parts.length ? parts.join(' ') : 'none';
+    }
+
+    function setParallaxLayers(nx, ny) {
+        // nx, ny ในช่วง -1..1 — ชั้นใกล้เลื่อนมาก / ชั้นไกลเลื่อนน้อย
+        var set = function (name, depth) {
+            player.style.setProperty('--px-' + name + '-x', (nx * depth) + 'px');
+            player.style.setProperty('--px-' + name + '-y', (ny * depth) + 'px');
+        };
+        set('art', 10);
+        set('info', 6);
+        set('ctrl', 8);
+        set('prog', 4);
+        set('local', 5);
+    }
+
+    function clearParallaxLayers() {
+        ['art', 'info', 'ctrl', 'prog', 'local'].forEach(function (name) {
+            player.style.setProperty('--px-' + name + '-x', '0px');
+            player.style.setProperty('--px-' + name + '-y', '0px');
+        });
+    }
+
+    function updateParallaxFromEvent(e) {
+        if (dragging) return;
+        var rect = player.getBoundingClientRect();
+        var cx = rect.left + rect.width / 2;
+        var cy = rect.top + rect.height / 2;
+        var nx = (e.clientX - cx) / (rect.width / 2);
+        var ny = (e.clientY - cy) / (rect.height / 2);
+        nx = Math.max(-1, Math.min(1, nx));
+        ny = Math.max(-1, Math.min(1, ny));
+        // เอียง: เมาส์ขวา → หมุน Y บวก, เมาส์ล่าง → หมุน X ลบ (ธรรมชาติ)
+        paraRY = nx * PARA_MAX;
+        paraRX = -ny * PARA_MAX;
+        player.classList.add('is-parallax');
+        setParallaxLayers(nx, ny);
+        // อัปเดต transform โดยคง left/top ปัจจุบัน
+        var curL = parseFloat(player.style.left);
+        var curT = parseFloat(player.style.top);
+        if (!isNaN(curL) && !isNaN(curT)) {
+            applyPosition(curL, curT, 1, 0);
+        } else {
+            // ยังอยู่ตำแหน่งกลางเริ่มต้น (translateX -50%)
+            player.style.transformOrigin = '50% 50%';
+            player.style.transform =
+                'translateX(-50%) perspective(900px) rotateX(' + paraRX + 'deg) rotateY(' + paraRY + 'deg)';
+        }
+    }
+
+    function resetParallax() {
+        if (dragging) return;
+        paraRX = 0;
+        paraRY = 0;
+        player.classList.remove('is-parallax');
+        clearParallaxLayers();
+        var curL = parseFloat(player.style.left);
+        var curT = parseFloat(player.style.top);
+        if (!isNaN(curL) && !isNaN(curT)) {
+            applyPosition(curL, curT, 1, 0);
+        } else {
+            player.style.transform = 'translateX(-50%)';
+        }
+    }
+
+    function clampPos(left, top) {
+        var rect = player.getBoundingClientRect();
+        var maxL = Math.max(0, window.innerWidth - rect.width);
+        var maxT = Math.max(0, window.innerHeight - rect.height);
+        return {
+            left: Math.min(Math.max(0, left), maxL),
+            top: Math.min(Math.max(0, top), maxT)
+        };
+    }
+
+    function savePos() {
+        try {
+            var rect = player.getBoundingClientRect();
+            localStorage.setItem(STORAGE_KEY, JSON.stringify({
+                left: rect.left,
+                top: rect.top,
+                collapsed: collapsed
+            }));
+        } catch (e) {}
+    }
+
+    function restorePos() {
+        try {
+            var raw = localStorage.getItem(STORAGE_KEY);
+            if (!raw) return;
+            var data = JSON.parse(raw);
+            if (data.collapsed) {
+                collapsed = true;
+                player.classList.add('is-collapsed');
+                if (collapseIcon) collapseIcon.className = 'bi bi-chevron-up';
+                if (collapseBtn) collapseBtn.title = 'ขยาย';
+            }
+            if (typeof data.left === 'number' && typeof data.top === 'number') {
+                // wait a frame so collapsed size is applied
+                requestAnimationFrame(function () {
+                    var p = clampPos(data.left, data.top);
+                    applyPosition(p.left, p.top);
+                });
+            }
+        } catch (e) {}
+    }
+
+    if (collapseBtn) {
+        collapseBtn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            collapsed = !collapsed;
+            player.classList.toggle('is-collapsed', collapsed);
+            if (collapseIcon) {
+                collapseIcon.className = collapsed ? 'bi bi-chevron-up' : 'bi bi-chevron-down';
+            }
+            collapseBtn.title = collapsed ? 'ขยาย' : 'หดย่อ';
+            // keep inside viewport after size change
+            requestAnimationFrame(function () {
+                var rect = player.getBoundingClientRect();
+                var p = clampPos(rect.left, rect.top);
+                applyPosition(p.left, p.top);
+                savePos();
+            });
+        });
+    }
+
+    if (dragHandle) {
+        var startX = 0, startY = 0, origL = 0, origT = 0;
+        var lastX = 0, lastY = 0, velX = 0, velY = 0;
+        var DRAG_SCALE = 1.04;
+        var MAX_TILT = 2.8;
+
+        function startDrag(clientX, clientY) {
+            dragging = true;
+            // ปิด parallax ตอนลาก
+            paraRX = 0;
+            paraRY = 0;
+            player.classList.remove('is-parallax', 'is-releasing');
+            clearParallaxLayers();
+            player.classList.add('is-dragging');
+            var rect = player.getBoundingClientRect();
+            // แปลงจาก CSS transform (center) เป็นตำแหน่ง absolute ทันที
+            applyPosition(rect.left, rect.top, DRAG_SCALE, 0);
+            startX = clientX;
+            startY = clientY;
+            lastX = clientX;
+            lastY = clientY;
+            velX = 0;
+            velY = 0;
+            origL = rect.left;
+            origT = rect.top;
+        }
+
+        dragHandle.addEventListener('mousedown', function (e) {
+            if (e.button !== 0) return;
+            e.preventDefault();
+            startDrag(e.clientX, e.clientY);
+        });
+
+        // touch support
+        dragHandle.addEventListener('touchstart', function (e) {
+            if (e.touches.length !== 1) return;
+            var t = e.touches[0];
+            startDrag(t.clientX, t.clientY);
+        }, { passive: true });
+
+        function onMove(clientX, clientY) {
+            if (!dragging) return;
+            var dx = clientX - startX;
+            var dy = clientY - startY;
+            // ความเร็วแบบ smooth สำหรับการเอียง (ลดการกระตุก)
+            var rawVx = clientX - lastX;
+            var rawVy = clientY - lastY;
+            velX = velX * 0.55 + rawVx * 0.45;
+            velY = velY * 0.55 + rawVy * 0.45;
+            lastX = clientX;
+            lastY = clientY;
+            // เอียงตามทิศทางลาก (แนวนอนหลัก + แนวตั้งเล็กน้อย)
+            var tilt = Math.max(-MAX_TILT, Math.min(MAX_TILT, velX * 0.42 + velY * 0.1));
+            var p = clampPos(origL + dx, origT + dy);
+            applyPosition(p.left, p.top, DRAG_SCALE, tilt);
+        }
+
+        function onEnd() {
+            if (!dragging) return;
+            dragging = false;
+            player.classList.remove('is-dragging');
+            player.classList.add('is-releasing');
+            // คืน scale/tilt กลับปกติแบบนุ่มนวล
+            var rect = player.getBoundingClientRect();
+            // คำนวณตำแหน่งจริงหลัง scale (getBoundingClientRect รวม scale แล้ว)
+            // ใช้ left/top ที่ตั้งไว้แล้ว + transform กลับ
+            var curL = parseFloat(player.style.left) || rect.left;
+            var curT = parseFloat(player.style.top) || rect.top;
+            applyPosition(curL, curT, 1, 0);
+            setTimeout(function () {
+                player.classList.remove('is-releasing');
+            }, 300);
+            savePos();
+        }
+
+        window.addEventListener('mousemove', function (e) {
+            onMove(e.clientX, e.clientY);
+        });
+        window.addEventListener('mouseup', onEnd);
+        window.addEventListener('touchmove', function (e) {
+            if (!dragging || e.touches.length !== 1) return;
+            e.preventDefault();
+            onMove(e.touches[0].clientX, e.touches[0].clientY);
+        }, { passive: false });
+        window.addEventListener('touchend', onEnd);
+        window.addEventListener('touchcancel', onEnd);
+    }
+
+    // —— Parallax 3D เมื่อชี้เมาส์บนแผง (ปิดตอนลาก) ——
+    player.addEventListener('mousemove', function (e) {
+        if (dragging) return;
+        updateParallaxFromEvent(e);
+    });
+    player.addEventListener('mouseleave', function () {
+        if (dragging) return;
+        // รีเซ็ตนุ่ม ๆ
+        player.style.transition = 'transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s ease';
+        resetParallax();
+        setTimeout(function () {
+            if (!dragging) player.style.transition = '';
+        }, 360);
+    });
+
+    // keep inside viewport on resize
+    window.addEventListener('resize', function () {
+        if (!player.style.left || player.style.left === '') return;
+        var rect = player.getBoundingClientRect();
+        var p = clampPos(rect.left, rect.top);
+        applyPosition(p.left, p.top);
+        savePos();
+    });
+
+    restorePos();
+
+    function fmt(sec) {
+        if (!isFinite(sec) || sec < 0) return '0:00';
+        var m = Math.floor(sec / 60);
+        var s = Math.floor(sec % 60);
+        return m + ':' + String(s).padStart(2, '0');
+    }
+
+    function setPlayingUI(playing) {
+        if (playIcon) playIcon.className = playing ? 'bi bi-pause-fill' : 'bi bi-play-fill';
+    }
+
+    function enableControls(on) {
+        [playBtn, prevBtn, nextBtn, seek].forEach(function (el) {
+            if (el) el.disabled = !on;
+        });
+    }
+
+    function revokeAll() {
+        tracks.forEach(function (t) {
+            try { URL.revokeObjectURL(t.url); } catch (e) {}
+        });
+    }
+
+    function isAudioFile(file) {
+        if (!file) return false;
+        if (file.type && file.type.indexOf('audio/') === 0) return true;
+        return AUDIO_EXT.test(file.name || '');
+    }
+
+    function addFiles(fileList) {
+        var files = Array.prototype.slice.call(fileList || []).filter(isAudioFile);
+        if (!files.length) {
+            if (typeof showAlert === 'function') {
+                showAlert('ไม่พบไฟล์เสียง', 'รองรับ .mp3 .wav .ogg .m4a .flac .aac', 'warning');
+            }
+            return;
+        }
+        // เรียงชื่อ
+        files.sort(function (a, b) {
+            return (a.name || '').localeCompare(b.name || '', 'th', { sensitivity: 'base' });
+        });
+
+        var startLen = tracks.length;
+        files.forEach(function (f) {
+            tracks.push({
+                name: f.name.replace(AUDIO_EXT, ''),
+                fileName: f.name,
+                url: URL.createObjectURL(f),
+                file: f
+            });
+        });
+
+        renderPlaylist();
+        enableControls(true);
+
+        // ถ้ายังไม่ได้อยู่เพลงไหน ให้เล่นตัวแรกที่เพิ่งเพิ่ม
+        if (index < 0) {
+            playAt(startLen);
+        } else {
+            subEl.textContent = tracks.length + ' เพลงในรายการ';
+        }
+    }
+
+    function playAt(i) {
+        if (i < 0 || i >= tracks.length) return;
+        index = i;
+        var t = tracks[index];
+        audio.src = t.url;
+        audio.volume = parseFloat(vol.value) || 0.8;
+        titleEl.textContent = t.name;
+        subEl.textContent = (index + 1) + ' / ' + tracks.length + ' — ' + (t.fileName || '');
+        artEl.innerHTML = '<i class="bi bi-music-note-beamed"></i>';
+        enableControls(true);
+        highlightPlaylist();
+        var p = audio.play();
+        if (p && p.catch) {
+            p.catch(function () { setPlayingUI(false); });
+        }
+        setPlayingUI(true);
+    }
+
+    function playNext(fromEnded) {
+        if (!tracks.length) return;
+        if (playMode === 'repeat-one' && fromEnded) {
+            audio.currentTime = 0;
+            audio.play().catch(function () {});
+            setPlayingUI(true);
+            return;
+        }
+        if (playMode === 'shuffle' && tracks.length > 1) {
+            var n;
+            do { n = Math.floor(Math.random() * tracks.length); } while (n === index);
+            playAt(n);
+            return;
+        }
+        // order / repeat-all
+        var next = index + 1;
+        if (next >= tracks.length) {
+            if (playMode === 'repeat-all' || !fromEnded) {
+                playAt(0);
+            } else {
+                // โหมดลำดับ — จบเพลย์ลิสต์แล้วหยุด
+                setPlayingUI(false);
+                seek.value = 0;
+                curTime.textContent = '0:00';
+            }
+        } else {
+            playAt(next);
+        }
+    }
+
+    function playPrev() {
+        if (!tracks.length) return;
+        if (audio.currentTime > 3) {
+            audio.currentTime = 0;
+            return;
+        }
+        if (playMode === 'shuffle' && tracks.length > 1) {
+            var n;
+            do { n = Math.floor(Math.random() * tracks.length); } while (n === index);
+            playAt(n);
+            return;
+        }
+        playAt((index - 1 + tracks.length) % tracks.length);
+    }
+
+    function applyPlayModeUI() {
+        if (!shuffleBtn) return;
+        var meta = PLAY_MODE_META[playMode] || PLAY_MODE_META.order;
+        var icon = shuffleBtn.querySelector('i');
+        if (icon) icon.className = 'bi ' + meta.icon;
+        shuffleBtn.title = meta.title;
+        shuffleBtn.classList.toggle('is-active', !!meta.active);
+        shuffleBtn.setAttribute('data-mode', playMode);
+    }
+
+    function renderPlaylist() {
+        if (!playlistEl) return;
+        playlistEl.innerHTML = '';
+        if (playlistEmpty) {
+            playlistEmpty.hidden = tracks.length > 0;
+        }
+        tracks.forEach(function (t, i) {
+            var li = document.createElement('li');
+            li.className = 'music-playlist-item' + (i === index ? ' active' : '');
+            li.innerHTML =
+                '<span class="music-pl-idx">' + (i + 1) + '</span>' +
+                '<span class="music-pl-name"></span>' +
+                '<button type="button" class="music-pl-remove" title="ลบ" data-remove="' + i + '">&times;</button>';
+            li.querySelector('.music-pl-name').textContent = t.name;
+            li.addEventListener('click', function (e) {
+                if (e.target.closest('[data-remove]')) return;
+                playAt(i);
+            });
+            var rm = li.querySelector('[data-remove]');
+            if (rm) {
+                rm.addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    removeAt(i);
+                });
+            }
+            playlistEl.appendChild(li);
+        });
+    }
+
+    function highlightPlaylist() {
+        if (!playlistEl) return;
+        var items = playlistEl.querySelectorAll('.music-playlist-item');
+        items.forEach(function (el, i) {
+            el.classList.toggle('active', i === index);
+        });
+    }
+
+    function removeAt(i) {
+        if (i < 0 || i >= tracks.length) return;
+        try { URL.revokeObjectURL(tracks[i].url); } catch (e) {}
+        tracks.splice(i, 1);
+        if (!tracks.length) {
+            index = -1;
+            audio.pause();
+            audio.removeAttribute('src');
+            titleEl.textContent = 'ยังไม่มีเพลง';
+            subEl.textContent = 'เลือกไฟล์หรือโฟลเดอร์เพลงจากเครื่อง';
+            enableControls(false);
+            setPlayingUI(false);
+            seek.value = 0;
+            curTime.textContent = '0:00';
+            durTime.textContent = '0:00';
+        } else {
+            if (index === i) {
+                playAt(Math.min(i, tracks.length - 1));
+            } else if (index > i) {
+                index -= 1;
+            }
+        }
+        renderPlaylist();
+    }
+
+    // —— UI events ——
+    if (pickFilesBtn && fileInput) {
+        pickFilesBtn.addEventListener('click', function () { fileInput.click(); });
+        fileInput.addEventListener('change', function () {
+            if (fileInput.files && fileInput.files.length) addFiles(fileInput.files);
+            fileInput.value = '';
+        });
+    }
+    if (pickFolderBtn && folderInput) {
+        pickFolderBtn.addEventListener('click', function () { folderInput.click(); });
+        folderInput.addEventListener('change', function () {
+            if (folderInput.files && folderInput.files.length) addFiles(folderInput.files);
+            folderInput.value = '';
+        });
+    }
+
+    if (playlistBtn && playlistPanel) {
+        playlistBtn.addEventListener('click', function () {
+            playlistPanel.hidden = !playlistPanel.hidden;
+            if (!playlistPanel.hidden) renderPlaylist();
+        });
+    }
+    if (playlistClose && playlistPanel) {
+        playlistClose.addEventListener('click', function () {
+            playlistPanel.hidden = true;
+        });
+    }
+
+    if (shuffleBtn) {
+        applyPlayModeUI();
+        shuffleBtn.addEventListener('click', function () {
+            var i = PLAY_MODES.indexOf(playMode);
+            playMode = PLAY_MODES[(i + 1) % PLAY_MODES.length];
+            applyPlayModeUI();
+        });
+    }
+
+    playBtn.addEventListener('click', function () {
+        if (!tracks.length) return;
+        if (audio.paused) {
+            audio.play().catch(function () {});
+            setPlayingUI(true);
+        } else {
+            audio.pause();
+            setPlayingUI(false);
+        }
+    });
+
+    prevBtn.addEventListener('click', playPrev);
+    nextBtn.addEventListener('click', playNext);
+
+    seek.addEventListener('input', function () { seeking = true; });
+    seek.addEventListener('change', function () {
+        if (audio.duration) {
+            audio.currentTime = (parseFloat(seek.value) / 100) * audio.duration;
+        }
+        seeking = false;
+    });
+
+    audio.addEventListener('timeupdate', function () {
+        if (seeking) return;
+        curTime.textContent = fmt(audio.currentTime);
+        if (audio.duration) {
+            durTime.textContent = fmt(audio.duration);
+            seek.value = String((audio.currentTime / audio.duration) * 100);
+        }
+    });
+    audio.addEventListener('play', function () { setPlayingUI(true); });
+    audio.addEventListener('pause', function () { setPlayingUI(false); });
+    audio.addEventListener('ended', function () { playNext(true); });
+    audio.addEventListener('error', function () {
+        subEl.textContent = 'เล่นไฟล์นี้ไม่ได้ — ข้ามไปเพลงถัดไป';
+        setTimeout(playNext, 600);
+    });
+
+    vol.addEventListener('input', function () {
+        var v = parseFloat(vol.value) || 0;
+        audio.volume = v;
+        if (volIcon) {
+            volIcon.className = v === 0 ? 'bi bi-volume-mute-fill'
+                : v < 0.4 ? 'bi bi-volume-down-fill' : 'bi bi-volume-up-fill';
+        }
+    });
+
+    // ล้าง object URLs ตอนปิดหน้า
+    window.addEventListener('beforeunload', revokeAll);
+})();
+
+
+
+
